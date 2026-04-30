@@ -3665,7 +3665,11 @@ function loadCloudSettings() {
   sv2('s-gemini-key', cfg.geminiKey || '');
 }
 function saveCloudSettings() {
-  const cfg = { sbUrl: gv('s-sb-url'), sbKey: gv('s-sb-key'), geminiKey: gv('s-gemini-key') };
+  let rawUrl = gv('s-sb-url').trim();
+  // パス・末尾スラッシュを除去（例: https://xxx.supabase.co/rest/v1/ → https://xxx.supabase.co）
+  rawUrl = rawUrl.replace(/\/+$/, '').replace(/\/(rest|auth|storage|realtime)(\/.*)?$/, '');
+  sv2('s-sb-url', rawUrl);
+  const cfg = { sbUrl: rawUrl, sbKey: gv('s-sb-key'), geminiKey: gv('s-gemini-key') };
   localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg));
   showBkToast('☁️ クラウド設定を保存しました');
   sbInit();
@@ -3679,7 +3683,9 @@ function sbInit() {
   if (!cfg.sbUrl || !cfg.sbKey) return;
   if (typeof window.supabase === 'undefined') return;
   try {
-    _sbClient = window.supabase.createClient(cfg.sbUrl, cfg.sbKey);
+    // URLクリーニング（/rest/v1/などのパスを除去）
+    const cleanUrl = cfg.sbUrl.trim().replace(/\/+$/, '').replace(/\/(rest|auth|storage|realtime)(\/.*)?$/, '');
+    _sbClient = window.supabase.createClient(cleanUrl, cfg.sbKey);
     _sbClient.auth.getSession().then(({ data }) => {
       if (data.session) {
         _sbUser = data.session.user;
