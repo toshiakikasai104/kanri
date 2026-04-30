@@ -6,6 +6,7 @@
 <title>退去・原状回復 顧客管理システム</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -3976,27 +3977,12 @@ function aiHistoryClear() {
   showBkToast('🗑️ AI履歴を削除しました');
 }
 
-async function geminiReadPdf(file) {
-  const cfg = ldO(CLOUD_KEY);
-  if (!cfg.geminiKey) {
-    alert('Gemini APIキーが設定されていません。\n自社情報 → クラウド設定 から設定してください。'); return null;
-  }
-  aiPanelOpen();
-  aiStatus('PDFを読み込んでいます...');
-  aiLog('📄 ファイル: ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)', '#93c5fd');
-
-  const base64 = await new Promise((res, rej) => {
-    const reader = new FileReader();
-    reader.onload = e => res(e.target.result.split(',')[1]);
-    reader.onerror = rej;
-    reader.readAsDataURL(file);
-  });
-  aiLog('✅ PDFの読み込み完了', '#4ade80');
-  aiStatus('Gemini AIにリクエスト送信中...');
-  aiLog('🚀 Gemini 2.0 Flash APIに送信中...', '#fbbf24');
-
-  const prompt = `このPDFは不動産の退去・原状回復に関する書類です。
+// ===== Gemini プロンプト定義 =====
+function prompt_text() {
+  return `このPDFまたは画像は不動産の退去・原状回復に関する書類です。
+スキャン画像の場合も含め、読み取れる情報を最大限抽出してください。
 以下の情報をJSONで抽出してください。見つからない項目は空文字にしてください。
+日付は和暦（令和・平成等）でもYYYY-MM-DD形式に変換してください。
 
 {
   "propertyName": "物件名",
@@ -4013,7 +3999,99 @@ async function geminiReadPdf(file) {
   "notes": "特記事項・備考"
 }
 
-JSONのみ返してください。`;
+JSONのみ返してください。マークダウンの\`\`\`は不要です。`;
+}
+
+// ファイルをbase64に変換するヘルパー
+async function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res(e.target.result.split(',')[1]);
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ===== PDF圧縮：スキャンPDFを画像に変換して軽量化 =====
+async function compressPdfToImages(file) {
+  // pdf.jsのWorker設定
+  if (typeof pdfjsLib === 'undefined') {
+    throw new Error('pdf.jsが読み込まれていません');
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdfDoc.numPages;
+  aiLog(`📑 総ページ数: ${numPages}ページ`, '#93c5fd');
+
+  // 解像度設定（OCRに十分な150DPI相当、サイズ最小化）
+  const SCALE = 1.2;   // 72dpi × 1.2 ≈ 86dpi（軽量・読み取り可能）
+  const QUALITY = 0.75; // JPEG品質 75%
+
+  const images = [];
+  let totalOrigKB = Math.round(file.size / 1024);
+  let totalCompKB = 0;
+
+  for (let i = 1; i <= numPages; i++) {
+    aiStatus(`ページ ${i}/${numPages} を圧縮中...`);
+    aiLog(`  🖼️ ページ${i}を変換中...`, '#94a3b8');
+
+    const page = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({ scale: SCALE });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // JPEG圧縮
+    const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+    const b64 = dataUrl.split(',')[1];
+    const sizeKB = Math.round(b64.length * 0.75 / 1024);
+    totalCompKB += sizeKB;
+    images.push({ b64, mimeType: 'image/jpeg', page: i, sizeKB });
+    aiLog(`    ✅ ページ${i}: ${sizeKB}KB`, '#4ade80');
+  }
+
+  aiLog(`📦 圧縮結果: ${totalOrigKB}KB → ${totalCompKB}KB (${Math.round(totalCompKB/totalOrigKB*100)}%)`, '#fbbf24');
+  return images;
+}
+
+async function geminiReadPdf(file) {
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.geminiKey) {
+    alert('Gemini APIキーが設定されていません。\n自社情報 → クラウド設定 から設定してください。'); return null;
+  }
+  aiPanelOpen();
+  aiStatus('PDFを読み込んでいます...');
+  const origKB = Math.round(file.size / 1024);
+  aiLog('📄 ファイル: ' + file.name + ' (' + origKB + 'KB)', '#93c5fd');
+
+  // 常に画像圧縮モード（全ページ）
+  let parts;
+  aiLog('📐 画像圧縮モードで全ページ処理します', '#fbbf24');
+  aiStatus('PDFを画像に変換・圧縮中...');
+  try {
+    const images = await compressPdfToImages(file);
+    aiLog(`✅ 全${images.length}ページの圧縮完了`, '#4ade80');
+    parts = [
+      { text: prompt_text() },
+      ...images.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))
+    ];
+  } catch(e) {
+    aiLog('⚠️ 画像変換失敗、PDFをそのまま送信: ' + e.message, '#fbbf24');
+    const base64 = await fileToBase64(file);
+    parts = [{ text: prompt_text() }, { inline_data: { mime_type: 'application/pdf', data: base64 } }];
+  }
+
+  aiStatus('Gemini AIにリクエスト送信中...');
+  aiLog('🚀 Gemini 2.0 Flash APIに送信中...', '#fbbf24');
+
+
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.geminiKey}`,
@@ -4021,10 +4099,7 @@ JSONのみ返してください。`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [
-            { text: prompt },
-            { inline_data: { mime_type: 'application/pdf', data: base64 } }
-          ]}]
+          contents: [{ parts: parts }]
         })
       }
     );
