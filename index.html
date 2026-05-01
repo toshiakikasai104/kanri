@@ -323,7 +323,13 @@ textarea{resize:vertical;min-height:60px;}
 
 <!-- CASES -->
 <div id="pg-cases" class="pg">
-  <div class="pgh"><div><h2>案件管理</h2></div><button class="btn bp" onclick="openCaseModal()">＋ 新規案件</button></div>
+  <div class="pgh">
+    <div><h2>案件管理</h2></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="btn bs" onclick="openChangeLog('case','案件')" title="変更履歴を表示">🕒 変更履歴</button>
+      <button class="btn bp" onclick="openCaseModal()">＋ 新規案件</button>
+    </div>
+  </div>
   <div class="card">
     <div class="ch">
       <div style="display:flex;gap:8px;flex:1;flex-wrap:wrap">
@@ -379,7 +385,13 @@ textarea{resize:vertical;min-height:60px;}
 
 <!-- SETTLEMENTS -->
 <div id="pg-settlements" class="pg">
-  <div class="pgh"><div><h2>精算書</h2></div><button class="btn bp" onclick="openDocModal('settlement')">＋ 精算書作成</button></div>
+  <div class="pgh">
+    <div><h2>精算書</h2></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="btn bs" onclick="openChangeLog('doc','精算書')" title="変更履歴を表示">🕒 変更履歴</button>
+      <button class="btn bp" onclick="openDocModal('settlement')">＋ 精算書作成</button>
+    </div>
+  </div>
   <div class="card"><div class="tw"><table><thead><tr><th>精算No</th><th>案件</th><th>宛先</th><th>作成日</th><th>金額（税込）</th><th>状態</th><th>添付</th><th>操作</th></tr></thead><tbody id="settlements-tb"></tbody></table></div>
   <div id="settlements-em" class="es" style="display:none"><div class="eic">📑</div><p>精算書がありません</p></div></div>
 </div>
@@ -588,7 +600,10 @@ textarea{resize:vertical;min-height:60px;}
 <div id="pg-pricelist" class="pg">
   <div class="pgh">
     <div><h2>単価票管理</h2><p>自社・管理会社別・業者別の工事単価を登録</p></div>
-    <button class="btn bp" onclick="openPriceItemModal()">＋ 項目追加</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn bs" onclick="openPricePdfImport()" title="PDFから単価を一括読み込み">📄 PDFから読み込む</button>
+      <button class="btn bp" onclick="openPriceItemModal()">＋ 項目追加</button>
+    </div>
   </div>
   <!-- タブ -->
   <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;">
@@ -688,6 +703,80 @@ textarea{resize:vertical;min-height:60px;}
     <div class="mf">
       <button class="btn bs" onclick="closeModal('price-modal')">キャンセル</button>
       <button class="btn bp" onclick="savePriceItem()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 単価PDF読み込みモーダル -->
+<div class="mo" id="price-import-modal">
+  <div class="md" style="max-width:680px;max-height:90vh;display:flex;flex-direction:column;">
+    <div class="mh"><h3>📄 PDFから単価を読み込む</h3><button class="mc" onclick="closeModal('price-import-modal')">✕</button></div>
+    <div class="mb" style="flex:1;overflow-y:auto;" id="pi-body">
+      <!-- Step1: 設定 -->
+      <div id="pi-step1">
+        <p style="font-size:13px;color:var(--tm);margin-bottom:12px">単価表PDFをアップロードし、AIが工事項目と単価を自動抽出します。</p>
+        <div class="fg">
+          <div class="fgr s2">
+            <label>PDFファイル</label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <label class="btn bo" style="cursor:pointer;font-size:13px;">
+                📂 PDFを選択
+                <input type="file" id="pi-file" accept="application/pdf" style="display:none" onchange="piFileSelected(event)">
+              </label>
+              <span id="pi-filename" style="font-size:12px;color:var(--tm);">ファイル未選択</span>
+            </div>
+          </div>
+          <div class="fgr"><label>読み込み先タイプ</label>
+            <select id="pi-target-type" onchange="piTargetTypeChange()">
+              <option value="own">🏠 自社施工単価</option>
+              <option value="mgmt">🏦 管理会社別単価</option>
+              <option value="ctor">🔧 業者発注単価</option>
+            </select>
+          </div>
+          <div class="fgr" id="pi-mgmt-row" style="display:none"><label>管理会社</label>
+            <select id="pi-mgmt-id"><option value="">— 選択 —</option></select>
+          </div>
+          <div class="fgr" id="pi-ctor-row" style="display:none"><label>業者</label>
+            <select id="pi-ctor-id"><option value="">— 選択 —</option></select>
+          </div>
+          <div class="fgr s2">
+            <label>既存データの扱い</label>
+            <select id="pi-merge-mode">
+              <option value="merge">既存に追加・上書き（重複は上書き）</option>
+              <option value="skip">既存に追加のみ（重複はスキップ）</option>
+              <option value="replace">選択タイプを全置換</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn bs" onclick="closeModal('price-import-modal')">キャンセル</button>
+          <button class="btn bp" id="pi-read-btn" onclick="startPriceImport()" disabled>🤖 AIで読み込む</button>
+        </div>
+      </div>
+      <!-- Step2: 確認 -->
+      <div id="pi-step2" style="display:none">
+        <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <p style="font-size:13px;font-weight:600;color:var(--tx);margin:0">AIが抽出した項目を確認してください</p>
+          <div style="display:flex;gap:6px;">
+            <button class="btn bs bsm" onclick="piSelectAll(true)">全選択</button>
+            <button class="btn bs bsm" onclick="piSelectAll(false)">全解除</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--tm);margin-bottom:8px" id="pi-result-summary"></div>
+        <div class="tw" style="max-height:320px;overflow-y:auto;">
+          <table>
+            <thead><tr>
+              <th style="width:36px;"><input type="checkbox" id="pi-chk-all" onchange="piSelectAll(this.checked)" checked></th>
+              <th>カテゴリ</th><th>工事項目</th><th>単位</th><th>単価</th><th>備考</th>
+            </tr></thead>
+            <tbody id="pi-result-tb"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn bs" onclick="piBackToStep1()">← 戻る</button>
+          <button class="btn bp" onclick="piConfirmImport()">✅ 選択項目を取り込む</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -863,17 +952,20 @@ textarea{resize:vertical;min-height:60px;}
   <div class="md lg">
     <div class="mh" style="flex-wrap:wrap;gap:6px">
     <h3 id="cm-title">新規案件</h3>
-    <div style="display:flex;gap:6px;align-items:center">
-      <button class="btn bo bsm" onclick="openGeminiPdfModal()" title="管理会社のPDFを読み取って自動入力">🤖 PDFから自動入力</button>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <button class="btn bo bsm" onclick="openContractPdfModal()" title="契約書PDFを読み取って自動入力">📄 契約書PDF読込</button>
+      <button class="btn bo bsm" onclick="openGeminiPdfModal()" title="精算書等のPDFを読み取って自動入力">🤖 精算書PDF読込</button>
       <button class="mcl" onclick="closeModal('case-modal')">✕</button>
     </div>
   </div>
     <div class="mb">
-      <div class="tb">
+      <div class="tb" style="flex-wrap:wrap;">
         <div class="ti active" onclick="stab(this,'ctab-b')">基本情報</div>
+        <div class="ti" onclick="stab(this,'ctab-c')">📋 契約情報</div>
         <div class="ti" onclick="stab(this,'ctab-w')">工事明細</div>
         <div class="ti" onclick="stab(this,'ctab-m')">メモ</div>
       </div>
+      <!-- 基本情報タブ -->
       <div id="ctab-b">
         <div class="fg">
           <div class="fgr"><label>物件 *</label><select id="c-prop" onchange="caseAutoFill()"></select></div>
@@ -884,17 +976,94 @@ textarea{resize:vertical;min-height:60px;}
           <div class="fgr"><label>状態</label>
             <select id="c-status"><option>新規</option><option>立ち会い予定</option><option>工事中</option><option>完了</option><option>キャンセル</option></select>
           </div>
-          <div class="fgr"><label>退去日</label><input type="date" id="c-moveout"></div>
+          <div class="fgr"><label>退去日</label><input type="date" id="c-moveout" oninput="calcTenancy()"></div>
           <div class="fgr"><label>立ち会い日</label><input type="date" id="c-insp"></div>
           <div class="fgr"><label>工事開始予定</label><input type="date" id="c-ws"></div>
           <div class="fgr"><label>工事完了予定</label><input type="date" id="c-we"></div>
         </div>
       </div>
+      <!-- 契約情報タブ -->
+      <div id="ctab-c" style="display:none">
+        <div class="fg">
+          <!-- 入居・退去期間 -->
+          <div class="fgr s2" style="padding:6px 0 2px;font-size:11px;font-weight:700;color:var(--tm);border-bottom:1px solid var(--bd)">── 入居期間・面積 ──</div>
+          <div class="fgr"><label>入居日</label><input type="date" id="c-movein" oninput="calcTenancy()"></div>
+          <div class="fgr"><label>解約日</label><input type="date" id="c-contractend" oninput="calcTenancy()"></div>
+          <div class="fgr s2">
+            <label>居住期間</label>
+            <div id="c-tenancy-disp" style="padding:7px 9px;background:var(--wh);border:1px solid var(--bd);border-radius:6px;font-size:13px;color:var(--pr);font-weight:600;min-height:34px">入居日・解約日を入力すると自動計算</div>
+          </div>
+          <div class="fgr"><label>専有面積（㎡）</label><input type="number" id="c-area" step="0.01" placeholder="例：45.50"></div>
+          <div class="fgr"><label>間取り</label><input id="c-madori" placeholder="例：1LDK"></div>
+          <!-- 家賃・日割り -->
+          <div class="fgr s2" style="padding:6px 0 2px;font-size:11px;font-weight:700;color:var(--tm);border-bottom:1px solid var(--bd)">── 家賃・日割り ──</div>
+          <div class="fgr"><label>月額家賃（円）</label><input type="number" id="c-rent" placeholder="0" oninput="calcHiwari()"></div>
+          <div class="fgr"><label>共益費（円）</label><input type="number" id="c-kanrihi" placeholder="0" oninput="calcHiwari()"></div>
+          <div class="fgr"><label>日割り計算方式</label>
+            <select id="c-hiwari-mode" onchange="calcHiwari()">
+              <option value="month">その月の日数で割る（標準）</option>
+              <option value="30">30日固定で割る</option>
+              <option value="custom">契約書指定日数</option>
+            </select>
+          </div>
+          <div class="fgr" id="c-hiwari-custom-row" style="display:none">
+            <label>契約書指定日数</label>
+            <input type="number" id="c-hiwari-days" placeholder="例：30" min="1" max="366" oninput="calcHiwari()">
+          </div>
+          <div class="fgr s2" id="c-hiwari-result-row">
+            <label>日割り家賃（計算結果）</label>
+            <div id="c-hiwari-disp" style="padding:7px 9px;background:var(--wh);border:1px solid var(--bd);border-radius:6px;font-size:13px;font-weight:600;min-height:34px;color:var(--tx)">家賃・解約日を入力すると自動計算</div>
+          </div>
+          <div id="c-hiwari-alert" style="display:none;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;font-size:12px;font-weight:600;grid-column:1/-1">
+            ⚠️ 日割り家賃の残り日数が10日以内です。日割り返金額をご確認ください。
+          </div>
+          <!-- 預かり資金 -->
+          <div class="fgr s2" style="padding:6px 0 2px;font-size:11px;font-weight:700;color:var(--tm);border-bottom:1px solid var(--bd)">── 預かり資金 ──</div>
+          <div class="fgr"><label>敷金（円）</label><input type="number" id="c-shikikin" placeholder="0"></div>
+          <div class="fgr"><label>礼金（円）</label><input type="number" id="c-reikin" placeholder="0"></div>
+          <!-- 特約 -->
+          <div class="fgr s2" style="padding:6px 0 2px;font-size:11px;font-weight:700;color:var(--tm);border-bottom:1px solid var(--bd)">── 特約（クリーニング等）──</div>
+          <!-- ハウスクリーニング特約 -->
+          <div class="fgr"><label>ハウスクリーニング特約</label>
+            <select id="c-hc-type">
+              <option value="">なし</option>
+              <option value="tenant_entry">入居者負担（入居時支払）</option>
+              <option value="tenant_exit">入居者負担（退去時支払）</option>
+              <option value="owner">オーナー負担</option>
+            </select>
+          </div>
+          <div class="fgr"><label>ハウスクリーニング金額（円）</label><input type="number" id="c-hc-amount" placeholder="0"></div>
+          <!-- エアコンクリーニング特約 -->
+          <div class="fgr"><label>エアコンクリーニング特約</label>
+            <select id="c-ac-type">
+              <option value="">なし</option>
+              <option value="tenant_entry">入居者負担（入居時支払）</option>
+              <option value="tenant_exit">入居者負担（退去時支払）</option>
+              <option value="owner">オーナー負担</option>
+            </select>
+          </div>
+          <div class="fgr"><label>エアコン台数</label><input type="number" id="c-ac-count" placeholder="0" min="0"></div>
+          <div class="fgr"><label>エアコンクリーニング金額（円）</label><input type="number" id="c-ac-amount" placeholder="0"></div>
+          <!-- 畳 -->
+          <div class="fgr"><label>畳の表替え特約</label>
+            <select id="c-tatami-type">
+              <option value="">なし</option>
+              <option value="tenant_exit">入居者負担（退去時）</option>
+              <option value="owner">オーナー負担</option>
+            </select>
+          </div>
+          <div class="fgr"><label>畳枚数</label><input type="number" id="c-tatami-count" placeholder="0" min="0"></div>
+          <!-- その他特約 -->
+          <div class="fgr s2"><label>その他特約・メモ</label><textarea id="c-tokuyaku-memo" rows="2" placeholder="その他の特約内容を記入"></textarea></div>
+        </div>
+      </div>
+      <!-- 工事明細タブ -->
       <div id="ctab-w" style="display:none">
         <div class="fgr" style="margin-bottom:10px"><label>工事概要</label><textarea id="c-wsum" rows="2"></textarea></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="font-size:13px">工事明細</strong><button class="btn bs bsm" onclick="addWI()">＋ 追加</button></div>
         <div id="wi-con"></div>
       </div>
+      <!-- メモタブ -->
       <div id="ctab-m" style="display:none">
         <div class="fg c1">
           <div class="fgr"><label>立ち会い時メモ</label><textarea id="c-imemo" rows="3"></textarea></div>
@@ -944,6 +1113,18 @@ textarea{resize:vertical;min-height:60px;}
       </div>
       <div id="di-con"></div>
       <div class="sb2" style="margin-top:10px" id="dm-sum"></div>
+      <!-- 精算書専用フィールド -->
+      <div id="dm-settlement-fields" style="display:none;margin-top:12px;padding:12px 14px;background:#fef9ec;border:1px solid #f59e0b;border-radius:8px;">
+        <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:8px;">📋 精算書専用項目</div>
+        <div class="fg">
+          <div class="fgr"><label>預かり敷金等（C）円</label><input type="number" id="dm-deposit" placeholder="0" oninput="calcSettlementTotal()"></div>
+          <div class="fgr"><label>日割り家賃返金（D）円</label><input type="number" id="dm-hiwari" placeholder="0" oninput="calcSettlementTotal()"></div>
+          <div class="fgr"><label>違約金等（B）円</label><input type="number" id="dm-violation" placeholder="0" oninput="calcSettlementTotal()"></div>
+          <div class="fgr"><label>振込期日</label><input type="date" id="dm-paydue"></div>
+          <div class="fgr s2"><label>振込口座（印刷用・未入力時は管理会社マスタを参照）</label><input id="dm-bankinfo" placeholder="例：〇〇銀行 △△支店 普通 1234567 カワニシ"></div>
+          <div id="dm-grand-total-row" style="grid-column:1/-1;padding:8px 12px;background:#fff3cd;border-radius:6px;font-size:13px;font-weight:700;color:#92400e;"></div>
+        </div>
+      </div>
       <div class="fg c1" style="margin-top:12px">
         <div class="fgr"><label>備考・特記事項</label><textarea id="dm-memo" rows="2"></textarea></div>
         <div class="fgr"><label>添付ファイルパス（メモ用）</label><input id="dm-attach" placeholder="例：/Users/〇〇/Documents/現地写真.pdf"></div>
@@ -970,7 +1151,34 @@ textarea{resize:vertical;min-height:60px;}
       <button class="btn bs" onclick="closeModal('doc-modal')">キャンセル</button>
       <button class="btn bg2" id="dm-excel-btn" onclick="saveDocAndExcel()" style="display:none">📊 保存してExcel出力</button>
       <button class="btn bo" id="dm-pdf-btn" onclick="saveDocAndPdf()" style="display:none">🖨️ 保存してPDF出力</button>
+      <button class="btn bg2" id="dm-settle-print-btn" onclick="saveDocAndPrintSettlement()" style="display:none">🖨️ 保存して精算書印刷</button>
       <button class="btn bp" onclick="saveDoc()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 変更ログモーダル ===== -->
+<div class="mo" id="changelog-modal">
+  <div class="md" style="max-width:760px;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="mh">
+      <h3>🕒 変更履歴ログ</h3>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn bd2 bsm" onclick="clearChangeLog()" title="全ログを削除">🗑️ クリア</button>
+        <button class="mcl" onclick="closeModal('changelog-modal')">✕</button>
+      </div>
+    </div>
+    <div style="padding:8px 16px;border-bottom:1px solid var(--bd);display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input id="cl-q" placeholder="キーワード検索..." style="width:180px;font-size:12px;padding:5px 8px;" oninput="renderChangeLog()">
+      <select id="cl-type" style="font-size:12px;padding:5px 8px;" onchange="renderChangeLog()">
+        <option value="">すべての種別</option>
+        <option value="doc">書類</option>
+        <option value="case">案件</option>
+        <option value="master">マスタ</option>
+      </select>
+      <span id="cl-count" style="font-size:11px;color:var(--tm);margin-left:4px;"></span>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:8px 16px;" id="cl-body">
+      <div class="es"><p>変更履歴がありません</p></div>
     </div>
   </div>
 </div>
@@ -1302,7 +1510,7 @@ function openCaseModal(id) {
   popSel('c-mgmt', mgmts, m => m.name, true);
   popSel('c-prime', primes, p => p.name, true);
   document.querySelectorAll('#case-modal .ti').forEach((t, i) => t.classList.toggle('active', i === 0));
-  ['ctab-b','ctab-w','ctab-m'].forEach((t, i) => { const el = $(t); if (el) el.style.display = i === 0 ? '' : 'none'; });
+  ['ctab-b','ctab-c','ctab-w','ctab-m'].forEach((t, i) => { const el = $(t); if (el) el.style.display = i === 0 ? '' : 'none'; });
   if (id) {
     const c = ld(K.cases).find(x => x.id === id) || {};
     sv2('c-prop', c.propertyId); sv2('c-room', c.room); sv2('c-tenant', c.tenantId);
@@ -1310,18 +1518,276 @@ function openCaseModal(id) {
     sv2('c-moveout', c.moveoutDate); sv2('c-insp', c.inspDate);
     sv2('c-ws', c.workStart); sv2('c-we', c.workEnd);
     sv2('c-wsum', c.wsum); sv2('c-imemo', c.imemo); sv2('c-memo', c.memo);
+    // 契約情報
+    sv2('c-movein', c.moveinDate || ''); sv2('c-contractend', c.contractEndDate || '');
+    sv2('c-area', c.area || ''); sv2('c-madori', c.madori || '');
+    sv2('c-rent', c.rent || ''); sv2('c-kanrihi', c.kanrihi || '');
+    sv2('c-hiwari-mode', c.hiwariMode || 'month');
+    sv2('c-hiwari-days', c.hiwariDays || '');
+    sv2('c-shikikin', c.shikikin || ''); sv2('c-reikin', c.reikin || '');
+    sv2('c-hc-type', c.hcType || ''); sv2('c-hc-amount', c.hcAmount || '');
+    sv2('c-ac-type', c.acType || ''); sv2('c-ac-count', c.acCount || '');
+    sv2('c-ac-amount', c.acAmount || ''); sv2('c-tatami-type', c.tatamiType || '');
+    sv2('c-tatami-count', c.tatamiCount || ''); sv2('c-tokuyaku-memo', c.tokuyakuMemo || '');
     _caseWI = c.workItems ? JSON.parse(JSON.stringify(c.workItems)) : [];
   } else {
-    ['c-prop','c-room','c-tenant','c-mgmt','c-prime','c-moveout','c-insp','c-ws','c-we','c-wsum','c-imemo','c-memo'].forEach(x => sv2(x, ''));
-    sv2('c-status', '新規');
+    ['c-prop','c-room','c-tenant','c-mgmt','c-prime','c-moveout','c-insp','c-ws','c-we','c-wsum','c-imemo','c-memo',
+     'c-movein','c-contractend','c-area','c-madori','c-rent','c-kanrihi','c-hiwari-days',
+     'c-shikikin','c-reikin','c-hc-amount','c-ac-count','c-ac-amount','c-tatami-count','c-tokuyaku-memo'].forEach(x => sv2(x, ''));
+    sv2('c-status', '新規'); sv2('c-hiwari-mode', 'month');
+    sv2('c-hc-type',''); sv2('c-ac-type',''); sv2('c-tatami-type','');
     _caseWI = [];
   }
+  caseHiwariModeChange(); calcTenancy(); calcHiwari();
   renderWI(); openModal('case-modal');
 }
 function caseAutoFill() {
   const pid = gv('c-prop'); if (!pid) return;
   const p = ld(K.props).find(x => x.id === pid);
   if (p && p.mgmtId) sv2('c-mgmt', p.mgmtId);
+}
+
+// ============================================================
+// 居住期間計算
+// ============================================================
+function calcTenancy() {
+  const movein = gv('c-movein') || gv('c-moveout');  // fallback
+  const end = gv('c-contractend') || gv('c-moveout');
+  const disp = $('c-tenancy-disp');
+  if (!disp) return;
+  if (!movein || !end) { disp.textContent = '入居日・解約日を入力すると自動計算'; disp.style.color = 'var(--tm)'; return; }
+  const d1 = new Date(movein), d2 = new Date(end);
+  if (d2 < d1) { disp.textContent = '解約日が入居日より前です'; disp.style.color = '#ef4444'; return; }
+  // 年・月計算（例の通り：2025/4/1-2026/3/31=1年、2025/4/1-2026/3/30=11か月）
+  let years = d2.getFullYear() - d1.getFullYear();
+  let months = d2.getMonth() - d1.getMonth();
+  let days = d2.getDate() - d1.getDate();
+  // 日が負 → 月を1繰り下げ
+  if (days < 0) { months--; }
+  // 月が負 → 年を1繰り下げ
+  if (months < 0) { months += 12; years--; }
+  // 端数判定: 退去日がその月の末日なら満月とみなす
+  const lastDay = new Date(d2.getFullYear(), d2.getMonth()+1, 0).getDate();
+  const isMonthEnd = d2.getDate() === lastDay;
+  // 日付が入居日と同じか末日なら端数月を加算
+  if (days > 0 || isMonthEnd) months++;
+  if (months >= 12) { years++; months -= 12; }
+  // 表示
+  let text = '';
+  if (years > 0) text += years + '年';
+  if (months > 0) text += months + 'か月';
+  if (!text) text = '1か月未満';
+  // 減価償却用の月数も表示
+  const totalMonths = years * 12 + months;
+  disp.textContent = text + '（計' + totalMonths + 'か月）';
+  disp.style.color = 'var(--pr)';
+  // 退去日が変わったら日割りも再計算
+  calcHiwari();
+}
+
+// ============================================================
+// 日割り家賃計算
+// ============================================================
+function caseHiwariModeChange() {
+  const mode = gv('c-hiwari-mode');
+  const row = $('c-hiwari-custom-row');
+  if (row) row.style.display = mode === 'custom' ? '' : 'none';
+}
+function calcHiwari() {
+  caseHiwariModeChange();
+  const rentEl = $('c-rent'), endEl = $('c-contractend') || $('c-moveout');
+  const dispEl = $('c-hiwari-disp'), alertEl = $('c-hiwari-alert');
+  if (!dispEl) return;
+  const rent = parseFloat(gv('c-rent') || '0');
+  const kanrihi = parseFloat(gv('c-kanrihi') || '0');
+  const endDate = gv('c-contractend') || gv('c-moveout');
+  if (!rent || !endDate) {
+    dispEl.textContent = '家賃・解約日を入力すると自動計算';
+    dispEl.style.color = 'var(--tm)';
+    if (alertEl) alertEl.style.display = 'none';
+    return;
+  }
+  const d = new Date(endDate);
+  const mode = gv('c-hiwari-mode');
+  // 月の初日
+  const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+  const monthEnd = new Date(d.getFullYear(), d.getMonth()+1, 0);
+  const daysInMonth = monthEnd.getDate();
+  let divisor;
+  if (mode === '30') divisor = 30;
+  else if (mode === 'custom') { divisor = parseInt(gv('c-hiwari-days')) || daysInMonth; }
+  else divisor = daysInMonth;
+  // 月末日なら日割りなし（満月分）
+  const isMonthEnd = d.getDate() === monthEnd.getDate();
+  if (isMonthEnd) {
+    dispEl.textContent = `月末解約 → 日割りなし（${(rent+kanrihi).toLocaleString()}円／月）`;
+    dispEl.style.color = '#10b981';
+    if (alertEl) alertEl.style.display = 'none';
+    return;
+  }
+  // 残り日数：翌日から月末まで返金
+  const remainDays = monthEnd.getDate() - d.getDate();
+  const dailyRent = Math.floor(rent / divisor);
+  const dailyKanri = Math.floor(kanrihi / divisor);
+  const refund = dailyRent * remainDays;
+  const refundKanri = dailyKanri * remainDays;
+  const chargeRent = rent - refund;
+  const chargeKanri = kanrihi - refundKanri;
+  let msg = `解約日: ${endDate}（${d.getDate()}日）\n`;
+  msg += `返金日数: ${remainDays}日 / 割る日数: ${divisor}日\n`;
+  msg += `日割り単価: ¥${dailyRent.toLocaleString()}（家賃）`;
+  if (kanrihi) msg += ` + ¥${dailyKanri.toLocaleString()}（共益費）`;
+  msg += `\n返金額: ¥${refund.toLocaleString()}`;
+  if (kanrihi) msg += ` + ¥${refundKanri.toLocaleString()} = ¥${(refund+refundKanri).toLocaleString()}`;
+  msg += `\n請求額: ¥${chargeRent.toLocaleString()}`;
+  if (kanrihi) msg += ` + ¥${chargeKanri.toLocaleString()} = ¥${(chargeRent+chargeKanri).toLocaleString()}`;
+  dispEl.textContent = msg;
+  dispEl.style.color = 'var(--tx)';
+  dispEl.style.whiteSpace = 'pre-line';
+  // アラート：返金日数10日以内
+  if (alertEl) alertEl.style.display = remainDays <= 10 ? '' : 'none';
+}
+
+// ============================================================
+// 契約書PDF読込（Gemini）
+// ============================================================
+function prompt_contract_text() {
+  return `あなたは不動産賃貸契約書を読み取るAIです。
+このPDFは賃貸借契約書（または重要事項説明書）です。
+以下の情報をすべて抽出してJSONで返してください。
+見つからない項目は空文字にしてください。
+日付は和暦（令和・平成等）でもYYYY-MM-DD形式に変換してください。
+金額は数値のみ（円記号・カンマなし）で返してください。
+
+{
+  "propertyName": "物件名（建物名）",
+  "propertyAddress": "物件の住所",
+  "roomNumber": "部屋番号",
+  "tenantName": "入居者（借主）氏名",
+  "tenantPhone": "入居者電話番号",
+  "managementCompany": "管理会社名",
+  "managementPhone": "管理会社電話番号",
+  "managementContact": "管理会社担当者名",
+  "moveinDate": "入居日・契約開始日（YYYY-MM-DD）",
+  "contractEndDate": "契約終了日・解約日（YYYY-MM-DD）",
+  "moveoutDate": "退去日（YYYY-MM-DD、解約日と異なる場合）",
+  "area": "専有面積（㎡、数値のみ）",
+  "madori": "間取り（例：1LDK）",
+  "rent": "月額家賃（数値のみ）",
+  "kanrihi": "共益費・管理費（数値のみ）",
+  "hiwariMode": "日割り方式（月日数の場合:month、30日固定:30、それ以外:custom）",
+  "hiwariDays": "日割り指定日数（contractで日数指定がある場合、数値のみ）",
+  "shikikin": "敷金（数値のみ）",
+  "reikin": "礼金（数値のみ）",
+  "hcType": "ハウスクリーニング特約（入居時支払い:tenant_entry、退去時支払い:tenant_exit、オーナー負担:owner、なし:空文字）",
+  "hcAmount": "ハウスクリーニング金額（数値のみ）",
+  "acType": "エアコンクリーニング特約（tenant_entry/tenant_exit/owner/空文字）",
+  "acCount": "エアコン台数（数値のみ）",
+  "acAmount": "エアコンクリーニング金額（数値のみ）",
+  "tatamiType": "畳表替え特約（tenant_exit/owner/空文字）",
+  "tatamiCount": "畳枚数（数値のみ）",
+  "tokuyakuMemo": "その他の特約内容（文章）",
+  "notes": "特記事項・備考"
+}
+
+JSONのみ返してください。マークダウンの\`\`\`は不要です。`;
+}
+
+function openContractPdfModal() {
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.geminiKey) { alert('Gemini APIキーが設定されていません。\n設定 → クラウド設定 から設定してください。'); return; }
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'application/pdf';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    const data = await geminiReadContractPdf(file);
+    if (data) applyContractData(data);
+  };
+  input.click();
+}
+
+async function geminiReadContractPdf(file) {
+  const cfg = ldO(CLOUD_KEY);
+  aiPanelOpen();
+  aiStatus('契約書PDFを読み込んでいます...');
+  aiLog('📄 契約書PDF読み込み開始: ' + file.name, '#fbbf24');
+  let parts;
+  try {
+    aiLog('📐 全ページを画像変換・圧縮中...', '#fbbf24');
+    const images = await compressPdfToImages(file);
+    aiLog(`✅ 全${images.length}ページ完了`, '#4ade80');
+    parts = [{ text: prompt_contract_text() }, ...images.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))];
+  } catch(e) {
+    aiLog('⚠️ 画像変換失敗: ' + e.message, '#fbbf24');
+    const b64 = await fileToBase64(file);
+    parts = [{ text: prompt_contract_text() }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
+  }
+  aiStatus('Gemini AIにリクエスト送信中...');
+  aiLog('🚀 Gemini 2.0 Flash APIに送信...', '#fbbf24');
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.geminiKey}`,
+      { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ contents:[{ parts }] }) }
+    );
+    const json = await res.json();
+    if (json.error) { aiLog('❌ APIエラー: '+json.error.message,'#f87171'); alert('Gemini APIエラー: '+json.error.message); return null; }
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    aiLog('📡 応答受信 ('+text.length+'文字)', '#a78bfa');
+    let jsonStr = text;
+    const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (mdMatch) jsonStr = mdMatch[1];
+    else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
+    let data;
+    try { data = JSON.parse(jsonStr); } catch(pe) { aiLog('❌ JSON解析失敗: '+pe.message,'#f87171'); alert('AIの応答を解析できませんでした'); return null; }
+    const found = Object.entries(data).filter(([k,v])=>v).length;
+    aiLog(`✅ ${found}項目を抽出しました`, '#4ade80');
+    aiDone(data);
+    return data;
+  } catch(e) {
+    aiLog('❌ 例外: '+e.message,'#f87171');
+    alert('契約書PDF解析エラー: '+e.message);
+    return null;
+  }
+}
+
+function applyContractData(data) {
+  const caseModal = $('case-modal');
+  const isOpen = caseModal && caseModal.classList.contains('open');
+  if (!isOpen) { openCaseModal(null); setTimeout(() => applyContractData(data), 300); return; }
+  // 基本情報
+  sv2('c-room', data.roomNumber || '');
+  if (data.moveoutDate) sv2('c-moveout', data.moveoutDate);
+  if (data.moveinDate) sv2('c-movein', data.moveinDate);
+  if (data.contractEndDate) sv2('c-contractend', data.contractEndDate);
+  // 契約情報フィールド
+  if (data.area) sv2('c-area', data.area);
+  if (data.madori) sv2('c-madori', data.madori);
+  if (data.rent) sv2('c-rent', data.rent);
+  if (data.kanrihi) sv2('c-kanrihi', data.kanrihi);
+  if (data.hiwariMode) sv2('c-hiwari-mode', data.hiwariMode);
+  if (data.hiwariDays) sv2('c-hiwari-days', data.hiwariDays);
+  if (data.shikikin) sv2('c-shikikin', data.shikikin);
+  if (data.reikin) sv2('c-reikin', data.reikin);
+  if (data.hcType) sv2('c-hc-type', data.hcType);
+  if (data.hcAmount) sv2('c-hc-amount', data.hcAmount);
+  if (data.acType) sv2('c-ac-type', data.acType);
+  if (data.acCount) sv2('c-ac-count', data.acCount);
+  if (data.acAmount) sv2('c-ac-amount', data.acAmount);
+  if (data.tatamiType) sv2('c-tatami-type', data.tatamiType);
+  if (data.tatamiCount) sv2('c-tatami-count', data.tatamiCount);
+  if (data.tokuyakuMemo) sv2('c-tokuyaku-memo', data.tokuyakuMemo);
+  // マスタ紐付け
+  if (data.propertyName) autoLinkProperty(data.propertyName, data.propertyAddress, data.managementCompany);
+  if (data.tenantName) autoLinkTenant(data.tenantName, data.tenantPhone, data.moveoutDate || data.contractEndDate);
+  // 再計算
+  caseHiwariModeChange(); calcTenancy(); calcHiwari();
+  showBkToast('✅ 契約書の情報を自動入力しました');
+  // 契約情報タブを表示
+  const tabs = document.querySelectorAll('#case-modal .ti');
+  const panes = ['ctab-b','ctab-c','ctab-w','ctab-m'];
+  tabs.forEach((t,i) => t.classList.toggle('active', i===1));
+  panes.forEach((p,i) => { const el=$(p); if(el) el.style.display = i===1?'':'none'; });
 }
 function renderWI() {
   const con = $('wi-con'), ctors = ld(K.contractors);
@@ -1343,7 +1809,7 @@ function addWI() { _caseWI.push({content:'',contractorId:'',amount:'',wstatus:'�
 function saveCase() {
   if (!gv('c-prop')) { alert('物件を選択してください'); return; }
   const list = ld(K.cases);
-  const existing = _caseEditId ? list.find(x => x.id === _caseEditId) : null;
+  const existing = _caseEditId ? JSON.parse(JSON.stringify(list.find(x => x.id === _caseEditId) || {})) : null;
   const data = {
     id: _caseEditId || uid(),
     no: existing ? existing.no : nextSeq('CASE'),
@@ -1353,9 +1819,27 @@ function saveCase() {
     workStart: gv('c-ws'), workEnd: gv('c-we'),
     wsum: gv('c-wsum'), workItems: JSON.parse(JSON.stringify(_caseWI)),
     imemo: gv('c-imemo'), memo: gv('c-memo'),
+    // 契約情報
+    moveinDate: gv('c-movein'), contractEndDate: gv('c-contractend'),
+    area: gv('c-area'), madori: gv('c-madori'),
+    rent: gv('c-rent'), kanrihi: gv('c-kanrihi'),
+    hiwariMode: gv('c-hiwari-mode'), hiwariDays: gv('c-hiwari-days'),
+    shikikin: gv('c-shikikin'), reikin: gv('c-reikin'),
+    hcType: gv('c-hc-type'), hcAmount: gv('c-hc-amount'),
+    acType: gv('c-ac-type'), acCount: gv('c-ac-count'), acAmount: gv('c-ac-amount'),
+    tatamiType: gv('c-tatami-type'), tatamiCount: gv('c-tatami-count'),
+    tokuyakuMemo: gv('c-tokuyaku-memo'),
     updatedAt: new Date().toISOString()
   };
   if (!_caseEditId) data.createdAt = new Date().toISOString();
+  // 変更ログ記録
+  const props2 = ld(K.props);
+  const pname = (props2.find(x=>x.id===data.propertyId)||{}).name || data.no || data.id;
+  if (_caseEditId && existing) {
+    recordChangeLog('case', '案件', pname + (data.room?' '+data.room+'号室':''), existing, data);
+  } else {
+    recordChangeLog('case', '案件', pname + (data.room?' '+data.room+'号室':''), null, data);
+  }
   upsert(list, data, _caseEditId);
   sv(K.cases, list); closeModal('case-modal'); renderCases();
 }
@@ -1605,13 +2089,35 @@ function openDocModal(type, id) {
   popSel('dm-prime-sel', primes, p => p.name);
   sv2('dm-issuer-type', id ? ((ld(cfg.key).find(x=>x.id===id)||{}).issuerType||'self') : 'self');
   dmIssuerChange();
-  // Excel出力ボタン（精算書以外に表示）
-  const excelBtn = $('dm-excel-btn');
-  if (excelBtn) excelBtn.style.display = type !== 'settlement' ? '' : 'none';
-  const pdfBtn = $('dm-pdf-btn');
-  if (pdfBtn) pdfBtn.style.display = type !== 'settlement' ? '' : 'none';
-  const issuerWrap = $('dm-issuer-wrap');
-  if (issuerWrap) issuerWrap.style.display = type !== 'settlement' ? '' : 'none';
+  // ボタン・フィールド表示切替
+  const isSettle = type === 'settlement';
+  const excelBtn = $('dm-excel-btn'); if (excelBtn) excelBtn.style.display = isSettle ? 'none' : '';
+  const pdfBtn = $('dm-pdf-btn'); if (pdfBtn) pdfBtn.style.display = isSettle ? 'none' : '';
+  const settlePrintBtn = $('dm-settle-print-btn'); if (settlePrintBtn) settlePrintBtn.style.display = isSettle ? '' : 'none';
+  const issuerWrap = $('dm-issuer-wrap'); if (issuerWrap) issuerWrap.style.display = isSettle ? 'none' : '';
+  const settleFields = $('dm-settlement-fields'); if (settleFields) settleFields.style.display = isSettle ? '' : 'none';
+  if (isSettle) {
+    // 精算書専用フィールドの初期値
+    const existDoc = id ? (ld(K.settlements).find(x=>x.id===id)||{}) : {};
+    sv2('dm-deposit', existDoc.depositReturn || '');
+    sv2('dm-hiwari', existDoc.hiwariReturn || '');
+    sv2('dm-violation', existDoc.violationFee || '');
+    sv2('dm-paydue', existDoc.payDue || '');
+    sv2('dm-bankinfo', existDoc.bankInfo || '');
+    // 案件から自動取得
+    setTimeout(() => {
+      const cid = gv('dm-case'); if (!cid) { calcSettlementTotal(); return; }
+      const cas = ld(K.cases).find(x=>x.id===cid)||{};
+      if (!existDoc.depositReturn && cas.shikikin) sv2('dm-deposit', cas.shikikin);
+      if (!existDoc.hiwariReturn && cas.hiwariReturn) sv2('dm-hiwari', cas.hiwariReturn);
+      const mg = ld(K.mgmt).find(x=>x.id===cas.mgmtId)||{};
+      if (!existDoc.payDue && mg.paysite) {
+        const pd = calcPayDueDate(mg.paysite, new Date().toISOString().slice(0,10));
+        if (pd) sv2('dm-paydue', pd);
+      }
+      calcSettlementTotal();
+    }, 200);
+  }
   renderDI(); calcDI(); openModal('doc-modal');
 }
 function docCaseChange() {
@@ -1647,19 +2153,50 @@ function docCaseChange() {
     renderDI(); calcDI();
   }
 }
+const SETTLEMENT_CATS = ['クリーニング','クロス工事','床工事','建具・設備工事','専門職工事','その他工事'];
 function renderDI() {
   const con = $('di-con');
   if (!_docItems.length) { con.innerHTML = '<div style="color:var(--tm);font-size:13px">明細なし</div>'; updateDISum(); return; }
-  con.innerHTML = _docItems.map((item, i) => `
-    <div style="display:grid;grid-template-columns:3fr 1fr 1fr 2fr auto;gap:6px;align-items:center;margin-bottom:5px">
-      <input placeholder="内容・品名" value="${esc(item.desc || '')}" oninput="_docItems[${i}].desc=this.value">
-      <input type="number" placeholder="1" value="${item.qty || 1}" oninput="_docItems[${i}].qty=this.value;calcDI()">
+  const isSettle = _docType === 'settlement';
+  // ヘッダー行
+  if (isSettle) {
+    const hdr = document.querySelector('#di-con').previousElementSibling;
+    if (hdr) hdr.style.gridTemplateColumns = '1fr 2fr 1fr 1fr 2fr auto';
+  }
+  con.innerHTML = _docItems.map((item, i) => {
+    const catSel = isSettle ? `<select style="font-size:11px;" oninput="_docItems[${i}].cat=this.value">
+      <option value="">カテゴリ</option>
+      ${SETTLEMENT_CATS.map(c=>`<option value="${c}"${c===item.cat?' selected':''}>${c}</option>`).join('')}
+    </select>` : '';
+    return `<div style="display:grid;grid-template-columns:${isSettle?'1fr 2fr 1fr 1fr 2fr auto':'3fr 1fr 1fr 2fr auto'};gap:6px;align-items:center;margin-bottom:5px">
+      ${catSel}
+      <input placeholder="内容・品名" value="${esc(item.desc || item.name || '')}" oninput="_docItems[${i}].desc=this.value">
+      <input type="number" placeholder="1" value="${item.qty||''}" oninput="_docItems[${i}].qty=this.value;calcDI();calcSettlementTotal()">
       <input placeholder="式" value="${esc(item.unit || '式')}" oninput="_docItems[${i}].unit=this.value">
-      <input type="number" placeholder="0" value="${item.price || 0}" oninput="_docItems[${i}].price=this.value;calcDI()">
+      <input type="number" placeholder="0" value="${item.price||0}" oninput="_docItems[${i}].price=this.value;calcDI();calcSettlementTotal()">
       <button class="btn bsm bd2" onclick="_docItems.splice(${i},1);renderDI()">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
-function addDI() { _docItems.push({desc:'', qty:1, unit:'式', price:0}); renderDI(); }
+function addDI() {
+  const cat = _docType === 'settlement' ? 'クリーニング' : '';
+  _docItems.push({desc:'', qty:1, unit:'式', price:0, cat});
+  renderDI();
+}
+function calcSettlementTotal() {
+  const sub = _docItems.reduce((s, i) => s + (Number(i.qty)||1)*(Number(i.price)||0), 0);
+  const tax = Math.floor(sub * 0.1);
+  const totalA = sub + tax;
+  const B = Number(gv('dm-violation')||0);
+  const C = Number(gv('dm-deposit')||0);
+  const D = Number(gv('dm-hiwari')||0);
+  const grand = totalA + B - C - D;
+  const el = $('dm-grand-total-row');
+  if (!el) return;
+  el.innerHTML = `税抜: ${sub.toLocaleString()}円　消費税: ${tax.toLocaleString()}円　税込(A): ${totalA.toLocaleString()}円<br>` +
+    `<span style="font-size:14px">最終精算額 (A+B-C-D) = ${grand.toLocaleString()}円</span>` +
+    `${grand < 0 ? '　<span style="color:#16a34a">（返金 ' + Math.abs(grand).toLocaleString() + '円）</span>' : ''}`;
+}
 function calcDI() {
   const sub = _docItems.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0);
   const tax = Math.floor(sub * 0.1);
@@ -1675,7 +2212,7 @@ function updateDISum(sub, tax, total) {
 function saveDoc() {
   const cfg = DOC_CFG[_docType];
   const list = ld(cfg.key);
-  const existing = _docEditId ? list.find(x => x.id === _docEditId) : null;
+  const existing = _docEditId ? JSON.parse(JSON.stringify(list.find(x => x.id === _docEditId) || {})) : null;
   const sub = _docItems.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0);
   const tax = Math.floor(sub * 0.1);
   const data = {
@@ -1691,9 +2228,21 @@ function saveDoc() {
     issuerPrimeId: gv('dm-prime-sel') || '',
     items: JSON.parse(JSON.stringify(_docItems)),
     subtotal: sub, tax, totalTax: sub + tax,
+    // 精算書専用
+    depositReturn: _docType === 'settlement' ? Number(gv('dm-deposit')||0) : undefined,
+    hiwariReturn:  _docType === 'settlement' ? Number(gv('dm-hiwari')||0) : undefined,
+    violationFee:  _docType === 'settlement' ? Number(gv('dm-violation')||0) : undefined,
+    payDue:        _docType === 'settlement' ? gv('dm-paydue') : undefined,
+    bankInfo:      _docType === 'settlement' ? gv('dm-bankinfo') : undefined,
     updatedAt: new Date().toISOString()
   };
   if (!_docEditId) data.createdAt = new Date().toISOString();
+  // 変更ログ記録
+  if (_docEditId && existing) {
+    recordChangeLog('doc', cfg.title, data.no || data.id, existing, data);
+  } else {
+    recordChangeLog('doc', cfg.title, data.no || data.id, null, data);
+  }
   upsert(list, data, _docEditId);
   sv(cfg.key, list); closeModal('doc-modal'); renderDocList(_docType);
 }
@@ -2014,7 +2563,234 @@ function saveSettings() {
 }
 
 // ===== PRINT =====
+function printSettlement(id) {
+  const doc = (ld(K.settlements) || []).find(x => x.id === id);
+  if (!doc) { alert('精算書データが見つかりません'); return; }
+  const cases = ld(K.cases) || [], props = ld(K.props) || [], tenants = ld(K.tenants) || [], mgmts = ld(K.mgmt) || [];
+  const c = cases.find(x => x.id === doc.caseId) || {};
+  const p = props.find(x => x.id === c.propertyId) || {};
+  const t = tenants.find(x => x.id === c.tenantId) || {};
+  const m = mgmts.find(x => x.id === c.mgmtId) || {};
+
+  const items = doc.items || [];
+  // 全工事項目を左右2カラムに振り分け
+  // 左：クリーニング系、右：クロス/床/設備/専門職/その他
+  const LEFT_CATS = ['クリーニング'];
+  const RIGHT_CATS = ['クロス工事','床工事','建具・設備工事','専門職工事','その他工事'];
+  const leftItems = items.filter(x => LEFT_CATS.includes(x.cat) || (!RIGHT_CATS.includes(x.cat) && LEFT_CATS.includes(x.cat)));
+  const rightItems = items.filter(x => RIGHT_CATS.includes(x.cat));
+  // leftに入らなかった残りもleftへ
+  const assignedIds = new Set([...leftItems.map(x=>x.id||x.desc), ...rightItems.map(x=>x.id||x.desc)]);
+  const otherItems = items.filter(x => !assignedIds.has(x.id||x.desc));
+  const allLeft = [...leftItems, ...otherItems.filter(x => !rightItems.includes(x))];
+  const allRight = [...rightItems];
+
+  // 金額計算
+  const subtotal = items.reduce((s,x) => s + (Number(x.qty)||1)*(Number(x.price)||0), 0);
+  const tax = Math.floor(subtotal * 0.1);
+  const totalA = subtotal + tax; // 税込合計(A)
+  const totalB = Number(doc.violationFee || 0); // 違約金等(B)
+  const totalC = Number(doc.depositReturn || c.shikikin || 0); // 預かり敷金(C)
+  const totalD = Number(doc.hiwariReturn || 0); // 日割り家賃返金(D)
+  const grandTotal = totalA + totalB - totalC - totalD;
+
+  // 契約期間
+  const contractPeriod = (c.moveinDate && c.contractEndDate)
+    ? fmtD(c.moveinDate) + ' 〜 ' + fmtD(c.contractEndDate)
+    : (c.moveinDate ? fmtD(c.moveinDate) + ' 〜' : '');
+
+  // 振込期日
+  const payDue = doc.payDue || '';
+
+  function mkRows(arr) {
+    const rows = [];
+    // カテゴリごとにグループ化して並べる
+    let lastCat = '';
+    arr.forEach(item => {
+      const cat = item.cat || '';
+      if (cat && cat !== lastCat) {
+        rows.push(`<tr><td colspan="6" style="background:#f0f0f0;font-size:10px;font-weight:700;padding:2px 4px;border:1px solid #bbb;text-align:center">${esc(cat)}</td></tr>`);
+        lastCat = cat;
+      }
+      const qty = Number(item.qty) || 0;
+      const price = Number(item.price) || 0;
+      const pct = item.pct || '';
+      const subtotalItem = qty > 0 ? qty * price : 0;
+      rows.push(`<tr>
+        <td style="padding:2px 4px;border:1px solid #ccc;font-size:10px;max-width:100px;overflow:hidden">${esc(item.desc || item.name || '')}</td>
+        <td style="padding:2px 4px;border:1px solid #ccc;font-size:10px;text-align:right">${price>0?price.toLocaleString():''}</td>
+        <td style="padding:2px 4px;border:1px solid #ccc;font-size:10px;text-align:center">${qty>0?qty:''}</td>
+        <td style="padding:2px 4px;border:1px solid #ccc;font-size:10px;text-align:center">${esc(item.unit||'')}</td>
+        <td style="padding:2px 4px;border:1px solid #ccc;font-size:10px;text-align:center">${pct?pct+'%':''}</td>
+        <td style="padding:2px 4px;border:1px solid #ccc;font-size:10px;text-align:right">${subtotalItem>0?subtotalItem.toLocaleString():''}</td>
+      </tr>`);
+    });
+    // 空行埋め（最低30行確保）
+    const minRows = 32;
+    while (rows.length < minRows) {
+      rows.push(`<tr><td style="padding:3px 4px;border:1px solid #ddd;font-size:10px">&nbsp;</td><td style="border:1px solid #ddd"></td><td style="border:1px solid #ddd"></td><td style="border:1px solid #ddd"></td><td style="border:1px solid #ddd"></td><td style="border:1px solid #ddd"></td></tr>`);
+    }
+    return rows.join('');
+  }
+
+  const today = new Date();
+  const todayStr = today.getFullYear() + '年' + (today.getMonth()+1) + '月' + today.getDate() + '日';
+
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<title>退去精算書</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Sans','Meiryo','MS Gothic',sans-serif;font-size:11px;color:#111;width:210mm;min-height:297mm;padding:6mm 7mm;margin:0 auto;background:#fff;}
+.hdr-top{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;}
+.hdr-box{border:1px solid #888;padding:3px 6px;font-size:10px;}
+.hdr-box .lb{font-size:9px;color:#555;margin-bottom:1px;}
+.hdr-box .val{font-size:11px;font-weight:600;}
+.hdr-mid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-bottom:4px;}
+.hdr-sm{border:1px solid #888;padding:3px 5px;font-size:10px;}
+.hdr-sm .lb{font-size:9px;color:#555;}
+.hdr-sm .val{font-size:11px;}
+.main-table{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:2px solid #333;border-left:2px solid #333;}
+.col-hdr{background:#e8e8e8;text-align:center;font-size:10px;font-weight:700;padding:3px;border-right:2px solid #333;border-bottom:1px solid #888;}
+.col-hdr.last{border-right:2px solid #333;}
+.col-table{border-right:2px solid #333;border-bottom:1px solid #888;}
+.col-table table{width:100%;border-collapse:collapse;}
+.col-table table th{background:#f0f0f0;font-size:9px;padding:2px 3px;border:1px solid #bbb;text-align:center;font-weight:600;}
+.footer-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:2px solid #333;border-left:2px solid #333;margin-top:0;}
+.footer-box{border-right:2px solid #333;border-bottom:1px solid #888;padding:3px 6px;font-size:10px;}
+.footer-box .lb{font-size:9px;color:#555;}
+.footer-box .val{font-size:13px;font-weight:700;color:#111;}
+.grand-total{border:2px solid #333;margin-top:4px;padding:4px 8px;display:flex;align-items:center;justify-content:space-between;}
+.grand-total .lb{font-size:11px;font-weight:700;}
+.grand-total .val{font-size:16px;font-weight:700;color:#111;}
+.checklist{margin-top:5px;font-size:10px;line-height:1.7;border:1px solid #bbb;padding:4px 8px;}
+.sign-area{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:5px;}
+.sign-box{border:1px solid #bbb;padding:4px 8px;font-size:10px;}
+.sign-line{border-bottom:1px solid #888;min-height:20px;margin-bottom:3px;}
+.sign-label{font-size:9px;color:#555;margin-bottom:2px;}
+.bank-box{border:2px solid #555;padding:4px 8px;margin-top:4px;font-size:10px;}
+@media print{
+  body{width:210mm;padding:6mm 7mm;}
+  @page{size:A4 portrait;margin:0;}
+}
+</style></head><body>
+<div style="text-align:center;font-size:16px;font-weight:700;letter-spacing:4px;border-bottom:2px solid #333;padding-bottom:3px;margin-bottom:5px">退　去　精　算　書（税抜き）</div>
+
+<!-- ヘッダー上段 -->
+<div class="hdr-top">
+  <div class="hdr-box"><div class="lb">物件名　・　号室</div><div class="val">${esc(p.name||'')}${c.room?'　'+c.room+'号室':''}</div></div>
+  <div class="hdr-box"><div class="lb">物件所在地</div><div class="val">${esc(p.address||'')}</div></div>
+</div>
+<!-- ヘッダー中段 -->
+<div class="hdr-mid">
+  <div class="hdr-sm"><div class="lb">契約期間</div><div class="val" style="font-size:10px">${esc(contractPeriod)}</div></div>
+  <div class="hdr-sm"><div class="lb">面積</div><div class="val">${c.area||''}${c.area?'㎡':''}</div></div>
+  <div class="hdr-sm"><div class="lb">預り敷金等（C）</div><div class="val">${totalC>0?totalC.toLocaleString()+'円':''}</div></div>
+  <div class="hdr-sm"><div class="lb">日割り家賃返金（D）</div><div class="val">${totalD>0?totalD.toLocaleString()+'円':''}</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
+  <div class="hdr-sm"><div class="lb">違約金等（B）</div><div class="val">${totalB>0?totalB.toLocaleString()+'円':''}</div></div>
+  <div class="hdr-sm"><div class="lb">入居者氏名</div><div class="val">${esc(t.name||'')}</div></div>
+</div>
+
+<!-- 明細列ヘッダー -->
+<div style="display:grid;grid-template-columns:1fr 1fr;border-top:2px solid #333;border-left:2px solid #333;">
+  <div class="col-hdr" style="border-right:1px solid #888;">クリーニング</div>
+  <div class="col-hdr" style="border-right:2px solid #333;">クロス工事・床工事 / 設備・専門職工事 / その他工事</div>
+</div>
+<!-- 列サブヘッダー -->
+<div style="display:grid;grid-template-columns:1fr 1fr;border-left:2px solid #333;">
+  <div style="border-right:1px solid #888;border-bottom:1px solid #888;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;">項目</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:52px">単価</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:24px">数量</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:24px">単位</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:20px">%</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:52px">小計</th>
+      </tr></thead>
+      <tbody>${mkRows(allLeft)}</tbody>
+    </table>
+  </div>
+  <div style="border-right:2px solid #333;border-bottom:1px solid #888;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;">項目</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:52px">単価</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:24px">数量</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:24px">単位</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:20px">%</th>
+        <th style="border:1px solid #bbb;padding:2px 3px;font-size:9px;background:#f5f5f5;width:52px">小計</th>
+      </tr></thead>
+      <tbody>${mkRows(allRight)}</tbody>
+    </table>
+  </div>
+</div>
+
+<!-- フッター金額行 -->
+<div style="display:grid;grid-template-columns:2fr 1fr 2fr;border:2px solid #333;margin-top:0;">
+  <div style="padding:3px 6px;border-right:1px solid #888;font-size:10px;">
+    <span>税抜き金額</span>
+    <span style="float:right;font-weight:700">${subtotal.toLocaleString()}円</span>
+    &nbsp;&nbsp;
+    <span>消費税</span>
+    <span style="float:right;font-weight:700">${tax.toLocaleString()}円</span>
+  </div>
+  <div style="padding:3px 6px;border-right:1px solid #888;"></div>
+  <div style="padding:3px 6px;font-size:11px;font-weight:700;">
+    税込み合計金額（A）<span style="float:right">${totalA.toLocaleString()}円</span>
+  </div>
+</div>
+<div style="border:2px solid #333;border-top:0;padding:4px 8px;font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center;background:#f9f9f9;">
+  <span>税込み合計金額（A）+（B）-（C）-（D）</span>
+  <span style="font-size:15px">${grandTotal.toLocaleString()}円</span>
+</div>
+
+<!-- 確認事項 -->
+<div class="checklist">
+  <div>① ご入居中に入居者様もしくは室内に入室された方がタバコを吸われた事はありますか？　YES　・　NO</div>
+  <div>② 上記内容にて原状回復の説明を受け、工事内容・支払いを承諾し下記にサインをお願い致します。</div>
+  <div>③ 解約精算書は下記のメールアドレス宛にお送りさせて頂きます。</div>
+</div>
+
+<!-- 署名エリア -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:5px;">
+  <div>
+    <div style="font-size:10px;margin-bottom:2px">日付　　　　　年　　　月　　　日</div>
+    <div style="font-size:10px;border:1px solid #bbb;padding:3px 6px;margin-bottom:3px;">
+      <div class="sign-label">転居先ご住所　：</div>
+      <div class="sign-line">&nbsp;</div>
+    </div>
+    <div style="font-size:10px;border:1px solid #bbb;padding:3px 6px;margin-bottom:3px;">
+      <div class="sign-label">氏名　：</div>
+      <div class="sign-line">${esc(t.name||'')}</div>
+    </div>
+    <div style="font-size:10px;border:1px solid #bbb;padding:3px 6px;">
+      <div class="sign-label">メールアドレス　：</div>
+      <div class="sign-line">${esc(t.email||'')}</div>
+    </div>
+  </div>
+  <div>
+    <div class="bank-box">
+      <div style="font-weight:700;margin-bottom:2px">振込口座　：</div>
+      <div style="border-bottom:1px solid #888;min-height:22px;padding:2px 0">${esc(m.bank ? (m.bank+(m.branch?' '+m.branch:'')+(m.actype?' '+m.actype:'')+(m.acno?' '+m.acno:'')+(m.acname?' '+m.acname:'')) : (doc.bankInfo||''))}</div>
+      <div style="margin-top:4px;font-weight:700">振込期日　：</div>
+      <div style="border-bottom:1px solid #888;min-height:22px;padding:2px 0">${payDue ? fmtD(payDue) : '2026年　　　月　　　日'}</div>
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=1200');
+  if (!w) { alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。'); return; }
+  w.document.write(html);
+  w.document.close();
+  w.onload = () => { w.focus(); w.print(); showBkToast('🖨️ 精算書の印刷ダイアログを開きました'); };
+}
+
 function printDoc(type, id) {
+  // 精算書は専用フォーマットで印刷
+  if (type === 'settlement') { printSettlement(id); return; }
   const cfg = DOC_CFG[type];
   const doc = ld(cfg.key).find(x => x.id === id); if (!doc) return;
   const s = ldO(K.settings);
@@ -3518,6 +4294,16 @@ function saveDocAndPdf() {
     if (doc) downloadDocPdf(currentType, doc.id);
   }, 200);
 }
+function saveDocAndPrintSettlement() {
+  const editId = _docEditId;
+  saveDoc();
+  setTimeout(() => {
+    const list = ld(K.settlements);
+    // 編集中なら同じID、新規なら最後のものを使う
+    const doc = editId ? list.find(x=>x.id===editId) : list[list.length-1];
+    if (doc) printSettlement(doc.id);
+  }, 200);
+}
 
 function downloadDocPdf(type, id) {
   const cfg = DOC_CFG[type];
@@ -4680,6 +5466,412 @@ function applyGeminiData(data) {
     setTimeout(() => applyGeminiData(data), 300);
   }
 }
+// ============================================================
+// 単価表PDF AI読み込み
+// ============================================================
+let _piExtracted = []; // extracted items from AI
+
+function openPricePdfImport() {
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.geminiKey) {
+    alert('Gemini APIキーが設定されていません。\n設定 → クラウド設定 から登録してください。'); return;
+  }
+  // populate selects
+  const mgmts = ld(K.mgmt);
+  const ctors = ld(K.ctors);
+  const mSel = $('pi-mgmt-id');
+  const cSel = $('pi-ctor-id');
+  mSel.innerHTML = '<option value="">— 選択 —</option>' + mgmts.map(m => `<option value="${m.id}">${m.name||'(未名)'}</option>`).join('');
+  cSel.innerHTML = '<option value="">— 選択 —</option>' + ctors.map(c => `<option value="${c.id}">${c.name||'(未名)'}</option>`).join('');
+  // reset
+  $('pi-file').value = '';
+  $('pi-filename').textContent = 'ファイル未選択';
+  $('pi-read-btn').disabled = true;
+  $('pi-target-type').value = 'own';
+  piTargetTypeChange();
+  $('pi-step1').style.display = '';
+  $('pi-step2').style.display = 'none';
+  openModal('price-import-modal');
+}
+
+function piFileSelected(e) {
+  const f = e.target.files[0];
+  if (f) {
+    $('pi-filename').textContent = f.name + ' (' + Math.round(f.size/1024) + 'KB)';
+    $('pi-read-btn').disabled = false;
+  }
+}
+
+function piTargetTypeChange() {
+  const t = $('pi-target-type').value;
+  $('pi-mgmt-row').style.display = t === 'mgmt' ? '' : 'none';
+  $('pi-ctor-row').style.display = t === 'ctor' ? '' : 'none';
+}
+
+async function startPriceImport() {
+  const file = $('pi-file').files[0];
+  if (!file) { alert('PDFファイルを選択してください'); return; }
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.geminiKey) { alert('Gemini APIキーが必要です'); return; }
+
+  // disable button
+  $('pi-read-btn').disabled = true;
+  $('pi-read-btn').textContent = '処理中...';
+  aiPanelOpen();
+  aiStatus('単価表PDFを読み込んでいます...');
+  aiLog('💴 単価表PDF読み込み開始: ' + file.name, '#fbbf24');
+
+  const origKB = Math.round(file.size / 1024);
+  aiLog('📄 ファイル: ' + file.name + ' (' + origKB + 'KB)', '#93c5fd');
+
+  let parts;
+  try {
+    aiLog('📐 全ページを画像変換・圧縮中...', '#fbbf24');
+    aiStatus('PDFを画像に変換中...');
+    const images = await compressPdfToImages(file);
+    aiLog(`✅ 全${images.length}ページ圧縮完了`, '#4ade80');
+    const pricePrompt = `あなたは建設・内装工事の単価表を読み取る専門AIです。
+このPDFは工事単価表です。以下の情報をすべて抽出してください。
+
+抽出ルール：
+1. すべての工事項目・サービス項目を抽出する
+2. カテゴリが不明な場合は内容から推定（クリーニング・クロス工事・床工事・建具設備・専門職工事・その他工事）
+3. 単位は「式/㎡/m/枚/箇所/台/本/個/セット」から最適なものを選ぶ
+4. 金額は数値のみ（カンマなし）
+5. 備考欄には特記事項・条件・注釈があれば記入
+
+必ず以下のJSON形式で出力してください（他のテキストは不要）：
+{
+  "items": [
+    {"cat": "カテゴリ", "name": "工事項目名", "unit": "単位", "price": 12345, "note": "備考"},
+    ...
+  ]
+}`;
+    parts = [{ text: pricePrompt }, ...images.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))];
+  } catch(e) {
+    aiLog('⚠️ 画像変換失敗: ' + e.message + ' — PDFをそのまま送信', '#fbbf24');
+    const b64 = await fileToBase64(file);
+    const pricePrompt = `あなたは建設・内装工事の単価表を読み取る専門AIです。
+このPDFは工事単価表です。すべての工事項目・単価を以下のJSON形式で出力してください（他のテキスト不要）：
+{"items":[{"cat":"カテゴリ","name":"工事項目名","unit":"式","price":12345,"note":"備考"},...]}`;
+    parts = [{ text: pricePrompt }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
+  }
+
+  aiStatus('Gemini AIにリクエスト送信中...');
+  aiLog('🚀 Gemini 2.0 Flash APIに送信...', '#fbbf24');
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.geminiKey}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts }] }) }
+    );
+    const json = await res.json();
+    if (json.error) {
+      aiLog('❌ APIエラー: ' + json.error.message, '#f87171');
+      aiStatus('エラー'); alert('Gemini APIエラー: ' + json.error.message);
+      $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む'; return;
+    }
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    aiLog('📡 応答受信 (' + text.length + '文字)', '#a78bfa');
+
+    // extract JSON from response (may be wrapped in markdown ```json blocks)
+    let jsonStr = text;
+    const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (mdMatch) jsonStr = mdMatch[1];
+    else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
+
+    let data;
+    try { data = JSON.parse(jsonStr); } catch(pe) {
+      aiLog('❌ JSON解析失敗: ' + pe.message, '#f87171');
+      alert('AIの応答を解析できませんでした。\nPDFの内容が単価表か確認してください。');
+      $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む'; return;
+    }
+
+    const items = data.items || [];
+    if (!items.length) {
+      aiLog('⚠️ 項目が抽出されませんでした', '#fbbf24');
+      alert('単価項目が見つかりませんでした。\nPDFが単価表かどうか確認してください。');
+      $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む'; return;
+    }
+
+    aiLog(`✅ ${items.length}項目を抽出しました！`, '#4ade80');
+    items.forEach(it => aiLog(`  💴 ${it.cat} | ${it.name} | ${it.unit} | ¥${Number(it.price||0).toLocaleString()}`, '#e2e8f0'));
+    aiDone({ priceItems: items });
+
+    _piExtracted = items;
+    showPriceImportStep2(items);
+
+  } catch(e) {
+    aiLog('❌ 例外: ' + e.message, '#f87171');
+    alert('PDF読み込みエラー: ' + e.message);
+    $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む';
+  }
+}
+
+function showPriceImportStep2(items) {
+  $('pi-step1').style.display = 'none';
+  $('pi-step2').style.display = '';
+  $('pi-result-summary').textContent = `${items.length}件の項目が抽出されました。取り込む項目にチェックを入れてください。`;
+
+  const VALID_UNITS = ['式','㎡','m','枚','箇所','台','本','個','セット'];
+  const VALID_CATS = ['クリーニング','クロス工事','床工事','建具・設備工事','専門職工事','その他工事'];
+
+  const tb = $('pi-result-tb');
+  tb.innerHTML = items.map((it, i) => {
+    const catOpts = VALID_CATS.map(c => `<option value="${c}"${c===it.cat?' selected':''}>${c}</option>`).join('');
+    const unitOpts = VALID_UNITS.map(u => `<option value="${u}"${u===it.unit?' selected':''}>${u}</option>`).join('');
+    return `<tr>
+      <td style="text-align:center"><input type="checkbox" class="pi-chk" data-i="${i}" checked></td>
+      <td><select class="pi-cat-sel" data-i="${i}" style="font-size:11px;width:100px">${catOpts}</select></td>
+      <td><input class="pi-name-inp" data-i="${i}" value="${esc(it.name||'')}" style="width:120px;font-size:12px;padding:2px 4px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--tx)"></td>
+      <td><select class="pi-unit-sel" data-i="${i}" style="font-size:11px;width:50px">${unitOpts}</select></td>
+      <td><input type="number" class="pi-price-inp" data-i="${i}" value="${it.price||0}" style="width:80px;font-size:12px;padding:2px 4px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--tx)"></td>
+      <td><input class="pi-note-inp" data-i="${i}" value="${esc(it.note||'')}" style="width:100px;font-size:11px;padding:2px 4px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--tx)"></td>
+    </tr>`;
+  }).join('');
+}
+
+function piSelectAll(checked) {
+  document.querySelectorAll('.pi-chk').forEach(c => c.checked = checked);
+  const allChk = $('pi-chk-all');
+  if (allChk) allChk.checked = checked;
+}
+
+function piBackToStep1() {
+  $('pi-step2').style.display = 'none';
+  $('pi-step1').style.display = '';
+  $('pi-read-btn').disabled = false;
+  $('pi-read-btn').textContent = '🤖 AIで読み込む';
+}
+
+function piConfirmImport() {
+  const targetType = $('pi-target-type').value;
+  const mgmtId = $('pi-mgmt-id').value;
+  const ctorId = $('pi-ctor-id').value;
+  const mergeMode = $('pi-merge-mode').value;
+
+  if (targetType === 'mgmt' && !mgmtId) { alert('管理会社を選択してください'); return; }
+  if (targetType === 'ctor' && !ctorId) { alert('業者を選択してください'); return; }
+
+  // collect checked rows with edited values
+  const selected = [];
+  document.querySelectorAll('.pi-chk').forEach(chk => {
+    if (!chk.checked) return;
+    const i = chk.dataset.i;
+    const cat = document.querySelector(`.pi-cat-sel[data-i="${i}"]`)?.value || _piExtracted[i]?.cat || 'その他工事';
+    const name = document.querySelector(`.pi-name-inp[data-i="${i}"]`)?.value || _piExtracted[i]?.name || '';
+    const unit = document.querySelector(`.pi-unit-sel[data-i="${i}"]`)?.value || _piExtracted[i]?.unit || '式';
+    const price = parseFloat(document.querySelector(`.pi-price-inp[data-i="${i}"]`)?.value) || 0;
+    const note = document.querySelector(`.pi-note-inp[data-i="${i}"]`)?.value || '';
+    if (name) selected.push({ cat, name, unit, price, note });
+  });
+
+  if (!selected.length) { alert('取り込む項目を選択してください'); return; }
+
+  let list = ld(K.pricelist);
+
+  if (mergeMode === 'replace') {
+    // remove existing items of this targetType
+    if (targetType === 'own') list = list.filter(x => x.targetType !== 'own' && x.mgmtId);
+    else if (targetType === 'mgmt') list = list.filter(x => !(x.targetType === 'mgmt' && x.mgmtId === mgmtId));
+    else if (targetType === 'ctor') list = list.filter(x => !(x.targetType === 'ctor' && x.ctorId === ctorId));
+  }
+
+  let added = 0, updated = 0, skipped = 0;
+  selected.forEach(it => {
+    // find existing by name + target
+    let existIdx = -1;
+    if (targetType === 'own') existIdx = list.findIndex(x => x.name === it.name && (!x.targetType || x.targetType === 'own') && !x.mgmtId && !x.ctorId);
+    else if (targetType === 'mgmt') existIdx = list.findIndex(x => x.name === it.name && x.mgmtId === mgmtId);
+    else if (targetType === 'ctor') existIdx = list.findIndex(x => x.name === it.name && x.ctorId === ctorId);
+
+    const entry = {
+      id: existIdx >= 0 ? list[existIdx].id : uid(),
+      cat: it.cat, name: it.name, unit: it.unit, note: it.note,
+      targetType: targetType,
+      ownPrice: targetType === 'own' ? it.price : (existIdx >= 0 ? list[existIdx].ownPrice : 0),
+      mgmtId: targetType === 'mgmt' ? mgmtId : '',
+      ctorId: targetType === 'ctor' ? ctorId : '',
+      price: it.price
+    };
+
+    if (existIdx >= 0) {
+      if (mergeMode === 'skip') { skipped++; return; }
+      list[existIdx] = entry; updated++;
+    } else {
+      list.push(entry); added++;
+    }
+  });
+
+  sv(K.pricelist, list);
+  closeModal('price-import-modal');
+  renderPriceList();
+
+  // switch to the correct tab
+  switchPriceTab(targetType);
+
+  showBkToast(`✅ 単価取り込み完了 — 追加:${added}件 更新:${updated}件 スキップ:${skipped}件`);
+}
+
+// ============================================================
+// 変更ログ機能
+// ============================================================
+const CHANGELOG_KEY = 'crm_changelog';
+const MAX_LOG_ENTRIES = 2000; // 最大保持件数
+
+// フィールド名の日本語ラベル対応表
+const FIELD_LABELS = {
+  // 案件
+  room:'部屋番号', status:'状態', moveoutDate:'退去日', inspDate:'立ち会い日',
+  workStart:'工事開始', workEnd:'工事完了', wsum:'工事概要', imemo:'立ち会いメモ', memo:'備考',
+  moveinDate:'入居日', contractEndDate:'解約日', area:'専有面積', madori:'間取り',
+  rent:'月額家賃', kanrihi:'共益費', hiwariMode:'日割り方式', hiwariDays:'日割り日数',
+  shikikin:'敷金', reikin:'礼金',
+  hcType:'ハウスクリーニング特約', hcAmount:'HCクリーニング金額',
+  acType:'エアコンクリーニング特約', acCount:'エアコン台数', acAmount:'AC金額',
+  tatamiType:'畳表替え特約', tatamiCount:'畳枚数', tokuyakuMemo:'その他特約',
+  // 書類共通
+  to:'宛先', date:'日付', limit:'期限', subject:'件名', statusStr:'状態',
+  subtotal:'小計', tax:'消費税', totalTax:'税込合計', memo2:'備考',
+  // 精算書専用
+  depositReturn:'預かり敷金(C)', hiwariReturn:'日割り返金(D)',
+  violationFee:'違約金(B)', payDue:'振込期日', bankInfo:'振込口座',
+  // マスタ共通
+  name:'名前', address:'住所', phone:'電話番号', email:'メール', fax:'FAX',
+  bank:'銀行名', branch:'支店名', actype:'口座種別', acno:'口座番号', acname:'口座名義',
+  paysite:'支払いサイト', fee:'手数料率',
+};
+
+function fieldLabel(key) {
+  return FIELD_LABELS[key] || key;
+}
+
+function formatLogValue(v) {
+  if (v === null || v === undefined || v === '') return '（空）';
+  if (typeof v === 'object') return JSON.stringify(v).slice(0, 80);
+  return String(v).slice(0, 120);
+}
+
+// 2つのオブジェクトを比較して変更点リストを返す
+function diffObjects(before, after) {
+  const changes = [];
+  const SKIP_KEYS = new Set(['id','no','createdAt','updatedAt','propertyId','tenantId','mgmtId','primeId','ctorId','issuerType','issuerPrimeId','caseId']);
+  const allKeys = new Set([...Object.keys(before||{}), ...Object.keys(after||{})]);
+  for (const key of allKeys) {
+    if (SKIP_KEYS.has(key)) continue;
+    const bv = (before||{})[key];
+    const av = (after||{})[key];
+    // 配列（workItems, items）は要素数の変化のみ記録
+    if (Array.isArray(bv) || Array.isArray(av)) {
+      const bl = Array.isArray(bv) ? bv.length : 0;
+      const al = Array.isArray(av) ? av.length : 0;
+      if (bl !== al) changes.push({ key, label: key==='workItems'?'工事明細':key==='items'?'明細行数':key, from: bl+'件', to: al+'件' });
+      continue;
+    }
+    const bStr = String(bv ?? '');
+    const aStr = String(av ?? '');
+    if (bStr !== aStr) {
+      changes.push({ key, label: fieldLabel(key), from: formatLogValue(bv), to: formatLogValue(av) });
+    }
+  }
+  return changes;
+}
+
+function recordChangeLog(type, typeName, subjectName, before, after) {
+  const logs = JSON.parse(localStorage.getItem(CHANGELOG_KEY) || '[]');
+  const changes = before ? diffObjects(before, after) : [{ key:'_new', label:'新規作成', from:'', to: subjectName }];
+  if (!changes.length) return; // 変更なし
+  const entry = {
+    id: uid(),
+    ts: new Date().toISOString(),
+    type,        // 'doc'|'case'|'master'
+    typeName,    // '精算書'|'案件'|'物件' etc
+    subject: subjectName,
+    isNew: !before,
+    changes
+  };
+  logs.unshift(entry); // 新しいものを先頭に
+  // 上限を超えたら古いものを削除
+  if (logs.length > MAX_LOG_ENTRIES) logs.splice(MAX_LOG_ENTRIES);
+  localStorage.setItem(CHANGELOG_KEY, JSON.stringify(logs));
+}
+
+let _clFilter = { type: '', q: '' };
+
+function openChangeLog(typeFilter, titleHint) {
+  sv2('cl-type', typeFilter || '');
+  sv2('cl-q', '');
+  renderChangeLog();
+  openModal('changelog-modal');
+}
+
+function renderChangeLog() {
+  const logs = JSON.parse(localStorage.getItem(CHANGELOG_KEY) || '[]');
+  const q = (gv('cl-q') || '').toLowerCase();
+  const typeF = gv('cl-type') || '';
+  const filtered = logs.filter(e => {
+    if (typeF && e.type !== typeF) return false;
+    if (q) {
+      const text = (e.typeName + e.subject + e.changes.map(c=>c.label+c.from+c.to).join('')).toLowerCase();
+      if (!text.includes(q)) return false;
+    }
+    return true;
+  });
+  const countEl = $('cl-count');
+  if (countEl) countEl.textContent = filtered.length + '件 / 全' + logs.length + '件';
+  const body = $('cl-body');
+  if (!body) return;
+  if (!filtered.length) {
+    body.innerHTML = '<div class="es"><p>変更履歴がありません</p></div>'; return;
+  }
+  // 日付でグループ化
+  const groups = {};
+  filtered.forEach(e => {
+    const day = e.ts.slice(0,10);
+    if (!groups[day]) groups[day] = [];
+    groups[day].push(e);
+  });
+  body.innerHTML = Object.entries(groups).map(([day, entries]) => {
+    const dayLabel = day.replace(/-/g, '/');
+    const rows = entries.map(e => {
+      const t = e.ts.slice(11,16); // HH:MM
+      const typeColor = e.type==='doc'?'#1a56db':e.type==='case'?'#16a34a':'#9333ea';
+      const badge = `<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700;color:#fff;background:${typeColor};margin-right:4px">${esc(e.typeName)}</span>`;
+      const action = e.isNew
+        ? `<span style="color:#16a34a;font-size:11px;font-weight:700">新規作成</span>`
+        : `<span style="color:#1a56db;font-size:11px;font-weight:700">更新 (${e.changes.length}項目)</span>`;
+      const changesHtml = e.isNew ? '' : e.changes.map(c => `
+        <div style="display:grid;grid-template-columns:120px 1fr 16px 1fr;gap:4px;align-items:start;padding:3px 0;border-bottom:1px dotted var(--bd);font-size:11px;">
+          <span style="font-weight:600;color:var(--tm)">${esc(c.label)}</span>
+          <span style="color:#ef4444;text-decoration:line-through;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.from)}">${esc(c.from)}</span>
+          <span style="text-align:center;color:var(--tm)">→</span>
+          <span style="color:#16a34a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.to)}">${esc(c.to)}</span>
+        </div>`).join('');
+      return `<div style="border:1px solid var(--bd);border-radius:8px;padding:8px 12px;margin-bottom:6px;background:var(--wh);">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--tm);min-width:36px">${t}</span>
+          ${badge}
+          <span style="font-size:12px;font-weight:700">${esc(e.subject)}</span>
+          ${action}
+        </div>
+        ${changesHtml}
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:8px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tm);padding:4px 0;border-bottom:1px solid var(--bd);margin-bottom:6px;">📅 ${dayLabel}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function clearChangeLog() {
+  if (!confirm('変更履歴をすべて削除しますか？元に戻せません。')) return;
+  localStorage.removeItem(CHANGELOG_KEY);
+  renderChangeLog();
+  showBkToast('🗑️ 変更履歴を削除しました');
+}
+
 function autoLinkProperty(name, address, mgmtName) {
   const props = ld(K.props);
   let prop = props.find(p => p.name && p.name.includes(name));
