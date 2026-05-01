@@ -1724,42 +1724,46 @@ async function geminiReadContractPdf(file) {
   aiPanelOpen();
   aiStatus('契約書PDFを読み込んでいます...');
   aiLog('📄 契約書PDF読み込み開始: ' + file.name, '#fbbf24');
-  let parts;
+
   try {
-    aiLog('📐 全ページを画像変換・圧縮中...', '#fbbf24');
-    const images = await compressPdfToImages(file);
-    aiLog(`✅ 全${images.length}ページ完了`, '#4ade80');
-    parts = [{ text: prompt_contract_text() }, ...images.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))];
-  } catch(e) {
-    aiLog('⚠️ 画像変換失敗: ' + e.message, '#fbbf24');
-    const b64 = await fileToBase64(file);
-    parts = [{ text: prompt_contract_text() }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
-  }
-  aiStatus('Gemini AIにリクエスト送信中...');
-  aiLog('🚀 Gemini 2.0 Flash APIに送信...', '#fbbf24');
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.geminiKey}`,
-      { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ contents:[{ parts }] }) }
-    );
-    const json = await res.json();
-    if (json.error) { aiLog('❌ APIエラー: '+json.error.message,'#f87171'); alert('Gemini APIエラー: '+json.error.message); return null; }
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    aiLog('📡 応答受信 ('+text.length+'文字)', '#a78bfa');
-    let jsonStr = text;
-    const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (mdMatch) jsonStr = mdMatch[1];
-    else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
     let data;
-    try { data = JSON.parse(jsonStr); } catch(pe) { aiLog('❌ JSON解析失敗: '+pe.message,'#f87171'); alert('AIの応答を解析できませんでした'); return null; }
+    let images;
+    try {
+      aiLog('📐 全ページを画像変換・圧縮中...', '#fbbf24');
+      images = await compressPdfToImages(file);
+      aiLog(`✅ 全${images.length}ページ完了`, '#4ade80');
+    } catch(e) {
+      aiLog('⚠️ 画像変換失敗: ' + e.message + ' — PDFをそのまま送信', '#fbbf24');
+      images = null;
+    }
+
+    if (images) {
+      // チャンク分割送信（無料枠対応）
+      data = await geminiSendChunked(cfg.geminiKey, prompt_contract_text(), images, mergeJsonResults);
+    } else {
+      // フォールバック: PDFをそのまま送信
+      const b64 = await fileToBase64(file);
+      const parts = [{ text: prompt_contract_text() }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
+      aiStatus('Gemini AIにリクエスト送信中...');
+      aiLog('🚀 Gemini 2.0 Flash APIに送信（PDF直接）...', '#fbbf24');
+      const resData = await geminiCallWithRetry(cfg.geminiKey, parts, 0);
+      const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      aiLog('📡 応答受信 (' + text.length + '文字)', '#a78bfa');
+      let jsonStr = text;
+      const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (mdMatch) jsonStr = mdMatch[1];
+      else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
+      try { data = JSON.parse(jsonStr); } catch(pe) { aiLog('❌ JSON解析失敗: ' + pe.message, '#f87171'); alert('AIの応答を解析できませんでした'); return null; }
+    }
+
+    if (!data) { aiLog('❌ データ取得失敗', '#f87171'); return null; }
     const found = Object.entries(data).filter(([k,v])=>v).length;
     aiLog(`✅ ${found}項目を抽出しました`, '#4ade80');
     aiDone(data);
     return data;
   } catch(e) {
-    aiLog('❌ 例外: '+e.message,'#f87171');
-    alert('契約書PDF解析エラー: '+e.message);
+    aiLog('❌ 例外: ' + e.message, '#f87171');
+    alert('契約書PDF解析エラー: ' + e.message);
     return null;
   }
 }
@@ -5498,6 +5502,115 @@ async function compressPdfToImages(file) {
   return images;
 }
 
+// ============================================================
+// Gemini API 共通呼び出し（分割送信 + 429リトライ対応）
+// ============================================================
+const GEMINI_MAX_PAGES_PER_REQ = 4; // 無料枠でも安全な1リクエストあたりの最大ページ数
+const GEMINI_RETRY_WAIT_MS = 65000; // 429時の待機時間（65秒）
+const GEMINI_MAX_RETRY = 2;
+
+async function geminiCallWithRetry(apiKey, parts, retryCount) {
+  retryCount = retryCount || 0;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] }) }
+  );
+  const json = await res.json();
+  if (json.error) {
+    const code = json.error.code || json.error.status;
+    const isQuota = code === 429 || String(json.error.message).includes('quota') || String(json.error.message).includes('Quota');
+    if (isQuota && retryCount < GEMINI_MAX_RETRY) {
+      aiLog(`⏳ クォータ制限に達しました。${Math.round(GEMINI_RETRY_WAIT_MS/1000)}秒後にリトライします... (${retryCount+1}/${GEMINI_MAX_RETRY})`, '#fbbf24');
+      aiStatus(`クォータ待機中... ${Math.round(GEMINI_RETRY_WAIT_MS/1000)}秒`);
+      // カウントダウン表示
+      await new Promise(resolve => {
+        let remaining = Math.round(GEMINI_RETRY_WAIT_MS / 1000);
+        const timer = setInterval(() => {
+          remaining--;
+          aiStatus(`クォータ待機中... ${remaining}秒`);
+          if (remaining <= 0) { clearInterval(timer); resolve(); }
+        }, 1000);
+      });
+      aiLog('🔄 リトライします...', '#93c5fd');
+      return geminiCallWithRetry(apiKey, parts, retryCount + 1);
+    }
+    throw new Error(json.error.message || 'Gemini APIエラー');
+  }
+  return json;
+}
+
+// 画像リストをチャンクに分割してGeminiに送信し、JSONをマージして返す
+async function geminiSendChunked(apiKey, promptText, images, mergeResultsFn) {
+  const chunks = [];
+  for (let i = 0; i < images.length; i += GEMINI_MAX_PAGES_PER_REQ) {
+    chunks.push(images.slice(i, i + GEMINI_MAX_PAGES_PER_REQ));
+  }
+  aiLog(`📤 ${images.length}ページを${chunks.length}回に分割して送信します（1回最大${GEMINI_MAX_PAGES_PER_REQ}ページ）`, '#fbbf24');
+
+  let mergedData = null;
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const chunk = chunks[ci];
+    const pageNums = chunk.map(x => x.page).join(',');
+    aiStatus(`送信中 (${ci+1}/${chunks.length}): ページ ${pageNums}...`);
+    aiLog(`📨 チャンク${ci+1}/${chunks.length}: ページ ${pageNums}`, '#93c5fd');
+
+    // チャンク用プロンプト（複数チャンクの場合は「このページ範囲のみ」を明示）
+    const chunkPrompt = chunks.length > 1
+      ? promptText + `\n\n※これは${images.length}ページ中のページ${pageNums}の画像です。このページ範囲から読み取れる情報のみ抽出してください。`
+      : promptText;
+
+    const parts = [
+      { text: chunkPrompt },
+      ...chunk.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))
+    ];
+
+    const json = await geminiCallWithRetry(apiKey, parts);
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    aiLog(`📡 チャンク${ci+1}応答受信 (${text.length}文字)`, '#a78bfa');
+
+    // JSON抽出
+    let jsonStr = text;
+    const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (mdMatch) jsonStr = mdMatch[1];
+    else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
+
+    let chunkData;
+    try { chunkData = JSON.parse(jsonStr); }
+    catch(pe) {
+      aiLog(`⚠️ チャンク${ci+1}: JSON解析失敗（スキップ）`, '#fbbf24');
+      continue;
+    }
+
+    // マージ
+    if (!mergedData) { mergedData = chunkData; }
+    else { mergedData = mergeResultsFn(mergedData, chunkData); }
+
+    // チャンク間に少し待機（レート制限対策：1分15リクエストなので4秒間隔で安全）
+    if (ci < chunks.length - 1) {
+      aiLog('⏱ 次のチャンクまで4秒待機...', '#94a3b8');
+      await new Promise(r => setTimeout(r, 4000));
+    }
+  }
+  return mergedData;
+}
+
+// JSONマージ関数：空でない値を後のチャンクで上書き（配列はconcat）
+function mergeJsonResults(base, update) {
+  const result = Object.assign({}, base);
+  for (const [k, v] of Object.entries(update)) {
+    if (v === null || v === undefined || v === '') continue;
+    if (Array.isArray(v) && Array.isArray(result[k])) {
+      result[k] = [...result[k], ...v]; // 配列はconcat
+    } else if (!result[k] || result[k] === '') {
+      result[k] = v; // 空の場合のみ上書き
+    } else {
+      result[k] = v; // 後のチャンクで上書き（より後ろのページが優先）
+    }
+  }
+  return result;
+}
+
 async function geminiReadPdf(file) {
   const cfg = ldO(CLOUD_KEY);
   if (!cfg.geminiKey) {
@@ -5505,73 +5618,27 @@ async function geminiReadPdf(file) {
   }
   aiPanelOpen();
   aiStatus('PDFを読み込んでいます...');
-  const origKB = Math.round(file.size / 1024);
-  aiLog('📄 ファイル: ' + file.name + ' (' + origKB + 'KB)', '#93c5fd');
-
-  // 常に画像圧縮モード（全ページ）
-  let parts;
-  aiLog('📐 画像圧縮モードで全ページ処理します', '#fbbf24');
-  aiStatus('PDFを画像に変換・圧縮中...');
+  aiLog('📄 ファイル: ' + file.name + ' (' + Math.round(file.size/1024) + 'KB)', '#93c5fd');
   try {
+    aiLog('📐 全ページを画像圧縮中...', '#fbbf24');
+    aiStatus('PDFを画像に変換中...');
     const images = await compressPdfToImages(file);
-    aiLog(`✅ 全${images.length}ページの圧縮完了`, '#4ade80');
-    parts = [
-      { text: prompt_text() },
-      ...images.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))
-    ];
-  } catch(e) {
-    aiLog('⚠️ 画像変換失敗、PDFをそのまま送信: ' + e.message, '#fbbf24');
-    const base64 = await fileToBase64(file);
-    parts = [{ text: prompt_text() }, { inline_data: { mime_type: 'application/pdf', data: base64 } }];
-  }
-
-  aiStatus('Gemini AIにリクエスト送信中...');
-  aiLog('🚀 Gemini 2.0 Flash APIに送信中...', '#fbbf24');
-
-
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: parts }]
-        })
-      }
-    );
-    aiLog('📡 APIレスポンス受信', '#a78bfa');
-    aiStatus('AIの応答を解析中...');
-    const json = await res.json();
-    if (json.error) {
-      aiLog('❌ エラー: ' + json.error.message, '#f87171');
-      aiStatus('エラーが発生しました');
-      alert('Gemini APIエラー: ' + json.error.message);
-      return null;
-    }
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    aiLog('🔍 テキスト解析中... (' + text.length + '文字)', '#94a3b8');
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) {
-      aiLog('❌ JSON解析失敗', '#f87171');
-      alert('AIの応答を解析できませんでした');
-      return null;
-    }
-    const data = JSON.parse(match[0]);
-    // 抽出した項目をログに表示
+    aiLog(`✅ 全${images.length}ページ完了`, '#4ade80');
+    const data = await geminiSendChunked(cfg.geminiKey, prompt_text(), images, mergeJsonResults);
+    if (!data) { aiLog('❌ データ抽出失敗', '#f87171'); alert('AIの応答を解析できませんでした'); return null; }
     const found = Object.entries(data).filter(([k,v]) => v);
     aiLog(`✅ ${found.length}項目を抽出しました`, '#4ade80');
     found.forEach(([k, v]) => {
-      const labels = {propertyName:'物件名', propertyAddress:'住所', roomNumber:'部屋番号',
-        tenantName:'入居者', tenantPhone:'入居者電話', moveoutDate:'退去日',
-        inspectionDate:'立ち会い日', managementCompany:'管理会社', managementPhone:'管理会社電話',
-        managementContact:'担当者', totalAmount:'合計金額', notes:'備考'};
+      const labels = {propertyName:'物件名',propertyAddress:'住所',roomNumber:'部屋番号',
+        tenantName:'入居者',tenantPhone:'入居者電話',moveoutDate:'退去日',
+        inspectionDate:'立ち会い日',managementCompany:'管理会社',managementPhone:'管理会社電話',
+        managementContact:'担当者',totalAmount:'合計金額',notes:'備考'};
       aiLog(`  ${labels[k]||k}: ${v}`, '#e2e8f0');
     });
     aiDone(data);
     return data;
   } catch(e) {
-    aiLog('❌ 例外: ' + e.message, '#f87171');
+    aiLog('❌ エラー: ' + e.message, '#f87171');
     aiStatus('エラーが発生しました');
     alert('PDF解析エラー: ' + e.message);
     return null;
@@ -5668,13 +5735,7 @@ async function startPriceImport() {
   const origKB = Math.round(file.size / 1024);
   aiLog('📄 ファイル: ' + file.name + ' (' + origKB + 'KB)', '#93c5fd');
 
-  let parts;
-  try {
-    aiLog('📐 全ページを画像変換・圧縮中...', '#fbbf24');
-    aiStatus('PDFを画像に変換中...');
-    const images = await compressPdfToImages(file);
-    aiLog(`✅ 全${images.length}ページ圧縮完了`, '#4ade80');
-    const pricePrompt = `あなたは建設・内装工事の単価表を読み取る専門AIです。
+  const pricePrompt = `あなたは建設・内装工事の単価表を読み取る専門AIです。
 このPDFは工事単価表です。以下の情報をすべて抽出してください。
 
 抽出ルール：
@@ -5691,48 +5752,54 @@ async function startPriceImport() {
     ...
   ]
 }`;
-    parts = [{ text: pricePrompt }, ...images.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))];
-  } catch(e) {
-    aiLog('⚠️ 画像変換失敗: ' + e.message + ' — PDFをそのまま送信', '#fbbf24');
-    const b64 = await fileToBase64(file);
-    const pricePrompt = `あなたは建設・内装工事の単価表を読み取る専門AIです。
-このPDFは工事単価表です。すべての工事項目・単価を以下のJSON形式で出力してください（他のテキスト不要）：
-{"items":[{"cat":"カテゴリ","name":"工事項目名","unit":"式","price":12345,"note":"備考"},...]}`;
-    parts = [{ text: pricePrompt }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
+
+  // 単価表用マージ関数: items配列を結合する
+  function mergePriceResults(base, update) {
+    const baseItems = base.items || [];
+    const updateItems = update.items || [];
+    return { items: [...baseItems, ...updateItems] };
   }
 
-  aiStatus('Gemini AIにリクエスト送信中...');
-  aiLog('🚀 Gemini 2.0 Flash APIに送信...', '#fbbf24');
-
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cfg.geminiKey}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts }] }) }
-    );
-    const json = await res.json();
-    if (json.error) {
-      aiLog('❌ APIエラー: ' + json.error.message, '#f87171');
-      aiStatus('エラー'); alert('Gemini APIエラー: ' + json.error.message);
-      $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む'; return;
-    }
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    aiLog('📡 応答受信 (' + text.length + '文字)', '#a78bfa');
-
-    // extract JSON from response (may be wrapped in markdown ```json blocks)
-    let jsonStr = text;
-    const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (mdMatch) jsonStr = mdMatch[1];
-    else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
-
     let data;
-    try { data = JSON.parse(jsonStr); } catch(pe) {
-      aiLog('❌ JSON解析失敗: ' + pe.message, '#f87171');
-      alert('AIの応答を解析できませんでした。\nPDFの内容が単価表か確認してください。');
-      $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む'; return;
+    let images;
+    try {
+      aiLog('📐 全ページを画像変換・圧縮中...', '#fbbf24');
+      aiStatus('PDFを画像に変換中...');
+      images = await compressPdfToImages(file);
+      aiLog(`✅ 全${images.length}ページ圧縮完了`, '#4ade80');
+    } catch(e) {
+      aiLog('⚠️ 画像変換失敗: ' + e.message + ' — PDFをそのまま送信', '#fbbf24');
+      images = null;
     }
 
-    const items = data.items || [];
+    if (images) {
+      // チャンク分割送信（無料枠対応）
+      data = await geminiSendChunked(cfg.geminiKey, pricePrompt, images, mergePriceResults);
+    } else {
+      // フォールバック: PDFをそのまま送信
+      const b64 = await fileToBase64(file);
+      const shortPrompt = `あなたは建設・内装工事の単価表を読み取る専門AIです。
+このPDFは工事単価表です。すべての工事項目・単価を以下のJSON形式で出力してください（他のテキスト不要）：
+{"items":[{"cat":"カテゴリ","name":"工事項目名","unit":"式","price":12345,"note":"備考"},...]}`;
+      const parts = [{ text: shortPrompt }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
+      aiStatus('Gemini AIにリクエスト送信中...');
+      aiLog('🚀 Gemini 2.0 Flash APIに送信（PDF直接）...', '#fbbf24');
+      const resData = await geminiCallWithRetry(cfg.geminiKey, parts, 0);
+      const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      aiLog('📡 応答受信 (' + text.length + '文字)', '#a78bfa');
+      let jsonStr = text;
+      const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (mdMatch) jsonStr = mdMatch[1];
+      else { const m = text.match(/\{[\s\S]*\}/); if (m) jsonStr = m[0]; }
+      try { data = JSON.parse(jsonStr); } catch(pe) {
+        aiLog('❌ JSON解析失敗: ' + pe.message, '#f87171');
+        alert('AIの応答を解析できませんでした。\nPDFの内容が単価表か確認してください。');
+        $('pi-read-btn').disabled = false; $('pi-read-btn').textContent = '🤖 AIで読み込む'; return;
+      }
+    }
+
+    const items = (data && data.items) || [];
     if (!items.length) {
       aiLog('⚠️ 項目が抽出されませんでした', '#fbbf24');
       alert('単価項目が見つかりませんでした。\nPDFが単価表かどうか確認してください。');
