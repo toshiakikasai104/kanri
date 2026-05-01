@@ -5467,9 +5467,9 @@ async function compressPdfToImages(file) {
   const numPages = pdfDoc.numPages;
   aiLog(`📑 総ページ数: ${numPages}ページ`, '#93c5fd');
 
-  // 解像度設定（OCRに十分な150DPI相当、サイズ最小化）
-  const SCALE = 1.0;   // 72dpi（A4文書の文字認識に十分・サイズ削減）
-  const QUALITY = 0.70; // JPEG品質 70%（文字認識への影響なし）
+  // 解像度設定（無料枠クォータ節約・サイズ最小化）
+  const SCALE = 0.8;   // 57dpi相当（A4文書の文字認識に十分・サイズ削減）
+  const QUALITY = 0.55; // JPEG品質 55%（文字認識に影響なし・サイズ大幅削減）
 
   const images = [];
   let totalOrigKB = Math.round(file.size / 1024);
@@ -5505,7 +5505,7 @@ async function compressPdfToImages(file) {
 // ============================================================
 // Gemini API 共通呼び出し（分割送信 + 429リトライ対応）
 // ============================================================
-const GEMINI_MAX_PAGES_PER_REQ = 4; // 無料枠でも安全な1リクエストあたりの最大ページ数
+const GEMINI_MAX_PAGES_PER_REQ = 2; // 無料枠対応：1リクエスト最大2ページ（トークン節約）
 const GEMINI_RETRY_WAIT_MS = 65000; // 429時の待機時間（65秒）
 const GEMINI_MAX_RETRY = 2;
 
