@@ -968,11 +968,23 @@ textarea{resize:vertical;min-height:60px;}
       <!-- 基本情報タブ -->
       <div id="ctab-b">
         <div class="fg">
-          <div class="fgr"><label>物件 *</label><select id="c-prop" onchange="caseAutoFill()"></select></div>
+          <div class="fgr" id="cbox-wrap-c-prop">
+            <label>物件</label>
+            <div id="cbox-c-prop"></div>
+          </div>
           <div class="fgr"><label>部屋番号</label><input id="c-room" placeholder="例：201"></div>
-          <div class="fgr"><label>入居者</label><select id="c-tenant"></select></div>
-          <div class="fgr"><label>管理会社</label><select id="c-mgmt"></select></div>
-          <div class="fgr"><label>元請け会社</label><select id="c-prime"></select></div>
+          <div class="fgr" id="cbox-wrap-c-tenant">
+            <label>入居者</label>
+            <div id="cbox-c-tenant"></div>
+          </div>
+          <div class="fgr" id="cbox-wrap-c-mgmt">
+            <label>管理会社</label>
+            <div id="cbox-c-mgmt"></div>
+          </div>
+          <div class="fgr" id="cbox-wrap-c-prime">
+            <label>元請け会社</label>
+            <div id="cbox-c-prime"></div>
+          </div>
           <div class="fgr"><label>状態</label>
             <select id="c-status"><option>新規</option><option>立ち会い予定</option><option>工事中</option><option>完了</option><option>キャンセル</option></select>
           </div>
@@ -1105,6 +1117,7 @@ textarea{resize:vertical;min-height:60px;}
     <div class="mh"><h3 id="dm-title">書類作成</h3><button class="mcl" onclick="closeModal('doc-modal')">✕</button></div>
     <div class="mb">
       <div class="fg" id="dm-fields"></div>
+      <div id="dm-case-warn" style="display:none;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;font-size:12px;font-weight:600;margin-top:6px;"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 7px">
         <strong style="font-size:13px">明細</strong><button class="btn bs bsm" onclick="addDI()">＋ 行追加</button>
       </div>
@@ -1505,16 +1518,16 @@ function openCaseModal(id) {
   _caseEditId = id || null;
   $('cm-title').textContent = id ? '案件編集' : '新規案件';
   const props = ld(K.props), tenants = ld(K.tenants), mgmts = ld(K.mgmt), primes = ld(K.prime);
-  popSel('c-prop', props, p => p.name);
-  popSel('c-tenant', tenants, t => t.name + (t.room ? ' (' + t.room + ')' : ''), true);
-  popSel('c-mgmt', mgmts, m => m.name, true);
-  popSel('c-prime', primes, p => p.name, true);
+  const c = id ? (ld(K.cases).find(x => x.id === id) || {}) : {};
+  // コンボボックス初期化
+  initCombo('cbox-c-prop',   'c-prop',   props,   p => p.name, c.propertyId || '', 'caseAutoFill');
+  initCombo('cbox-c-tenant', 'c-tenant', tenants, t => t.name + (t.room?' ('+t.room+')':''), c.tenantId || '', '');
+  initCombo('cbox-c-mgmt',   'c-mgmt',   mgmts,   m => m.name, c.mgmtId || '', '');
+  initCombo('cbox-c-prime',  'c-prime',  primes,  p => p.name, c.primeId || '', '');
   document.querySelectorAll('#case-modal .ti').forEach((t, i) => t.classList.toggle('active', i === 0));
   ['ctab-b','ctab-c','ctab-w','ctab-m'].forEach((t, i) => { const el = $(t); if (el) el.style.display = i === 0 ? '' : 'none'; });
   if (id) {
-    const c = ld(K.cases).find(x => x.id === id) || {};
-    sv2('c-prop', c.propertyId); sv2('c-room', c.room); sv2('c-tenant', c.tenantId);
-    sv2('c-mgmt', c.mgmtId); sv2('c-prime', c.primeId); sv2('c-status', c.status);
+    sv2('c-room', c.room); sv2('c-status', c.status);
     sv2('c-moveout', c.moveoutDate); sv2('c-insp', c.inspDate);
     sv2('c-ws', c.workStart); sv2('c-we', c.workEnd);
     sv2('c-wsum', c.wsum); sv2('c-imemo', c.imemo); sv2('c-memo', c.memo);
@@ -1531,7 +1544,7 @@ function openCaseModal(id) {
     sv2('c-tatami-count', c.tatamiCount || ''); sv2('c-tokuyaku-memo', c.tokuyakuMemo || '');
     _caseWI = c.workItems ? JSON.parse(JSON.stringify(c.workItems)) : [];
   } else {
-    ['c-prop','c-room','c-tenant','c-mgmt','c-prime','c-moveout','c-insp','c-ws','c-we','c-wsum','c-imemo','c-memo',
+    ['c-room','c-moveout','c-insp','c-ws','c-we','c-wsum','c-imemo','c-memo',
      'c-movein','c-contractend','c-area','c-madori','c-rent','c-kanrihi','c-hiwari-days',
      'c-shikikin','c-reikin','c-hc-amount','c-ac-count','c-ac-amount','c-tatami-count','c-tokuyaku-memo'].forEach(x => sv2(x, ''));
     sv2('c-status', '新規'); sv2('c-hiwari-mode', 'month');
@@ -1544,7 +1557,7 @@ function openCaseModal(id) {
 function caseAutoFill() {
   const pid = gv('c-prop'); if (!pid) return;
   const p = ld(K.props).find(x => x.id === pid);
-  if (p && p.mgmtId) sv2('c-mgmt', p.mgmtId);
+  if (p && p.mgmtId) comboSetVal('c-mgmt', p.mgmtId);
 }
 
 // ============================================================
@@ -1807,14 +1820,18 @@ function renderWI() {
 }
 function addWI() { _caseWI.push({content:'',contractorId:'',amount:'',wstatus:'未発注'}); renderWI(); }
 function saveCase() {
-  if (!gv('c-prop')) { alert('物件を選択してください'); return; }
   const list = ld(K.cases);
   const existing = _caseEditId ? JSON.parse(JSON.stringify(list.find(x => x.id === _caseEditId) || {})) : null;
+  // コンボボックスの値を解決（直接入力ならマスタ自動登録）
+  const propertyId = comboResolveId('c-prop',   K.props,    { address:'', mgmtId:'', type:'マンション', rooms:'', age:'', memo:'' });
+  const tenantId   = comboResolveId('c-tenant', K.tenants,  { kana:'', phone:'', email:'', propertyId:'', room:'', movein:'', moveout:'', memo:'' });
+  const mgmtId     = comboResolveId('c-mgmt',   K.mgmt,     { contact:'', phone:'', email:'', fax:'', address:'', memo:'' });
+  const primeId    = comboResolveId('c-prime',  K.prime,    { contact:'', phone:'', email:'', address:'', memo:'' });
   const data = {
     id: _caseEditId || uid(),
     no: existing ? existing.no : nextSeq('CASE'),
-    propertyId: gv('c-prop'), room: gv('c-room'),
-    tenantId: gv('c-tenant'), mgmtId: gv('c-mgmt'), primeId: gv('c-prime'),
+    propertyId, room: gv('c-room'),
+    tenantId, mgmtId, primeId,
     status: gv('c-status'), moveoutDate: gv('c-moveout'), inspDate: gv('c-insp'),
     workStart: gv('c-ws'), workEnd: gv('c-we'),
     wsum: gv('c-wsum'), workItems: JSON.parse(JSON.stringify(_caseWI)),
@@ -1859,11 +1876,19 @@ function renderCases() {
     const p = props.find(x => x.id === c.propertyId);
     const t = tenants.find(x => x.id === c.tenantId);
     const m = mgmts.find(x => x.id === c.mgmtId);
+    // 未入力アラートチェック
+    const missing = [];
+    if (!c.propertyId) missing.push('物件');
+    if (!c.tenantId)   missing.push('入居者');
+    if (!c.mgmtId)     missing.push('管理会社');
+    const alertBadge = missing.length
+      ? `<span title="未入力項目: ${missing.join('・')}" style="color:#f59e0b;font-size:14px;cursor:help;" onclick="alert('未入力項目があります:\\n・${missing.join('\\n・')}\\n\\n案件を編集して入力してください。')">⚠️</span>`
+      : '';
     return `<tr>
-      <td style="font-size:11px;color:var(--tm)">${c.no || '—'}</td>
-      <td><strong>${p ? esc(p.name) : '—'}</strong>${c.room ? ` <span style="font-size:11px;color:var(--tm)">${esc(c.room)}号室</span>` : ''}</td>
-      <td>${t ? esc(t.name) : '—'}</td>
-      <td>${m ? esc(m.name) : '—'}</td>
+      <td style="font-size:11px;color:var(--tm)">${c.no || '—'} ${alertBadge}</td>
+      <td><strong>${p ? esc(p.name) : '<span style="color:#f59e0b">未設定</span>'}</strong>${c.room ? ` <span style="font-size:11px;color:var(--tm)">${esc(c.room)}号室</span>` : ''}</td>
+      <td>${t ? esc(t.name) : '<span style="color:#f59e0b">未設定</span>'}</td>
+      <td>${m ? esc(m.name) : '<span style="color:#f59e0b">未設定</span>'}</td>
       <td>${fmtD(c.inspDate)}</td>
       <td>${fmtD(c.workEnd)}</td>
       <td>${bdg(SB, c.status)}</td>
@@ -2022,6 +2047,100 @@ function popSel(id, list, labelFn, allowEmpty) {
   el.innerHTML = (allowEmpty ? '<option value="">— 選択 —</option>' : '') +
     list.map(x => `<option value="${x.id}">${esc(labelFn(x))}</option>`).join('');
 }
+
+// ============================================================
+// コンボボックス（セレクト＋直接入力の切り替え）
+// ============================================================
+// containerId: div のid、selectId: 内部で使うselectのid
+// list: [{id,name,...}]、labelFn: item=>表示文字列、currentVal: 現在のID
+// onChangeCb: 選択変更時のコールバック
+function initCombo(containerId, selectId, list, labelFn, currentVal, onChangeCb) {
+  const wrap = $(containerId); if (!wrap) return;
+  const html = `
+    <div style="display:flex;gap:4px;align-items:center;" id="${selectId}-combo-row">
+      <select id="${selectId}" style="flex:1" onchange="${onChangeCb ? onChangeCb + '()' : ''}">
+        <option value="">— 選択 —</option>
+        ${list.map(x => `<option value="${x.id}" ${x.id===currentVal?'selected':''}>${esc(labelFn(x))}</option>`).join('')}
+      </select>
+      <button type="button" class="btn bs bsm" style="white-space:nowrap;font-size:11px;padding:4px 7px;"
+        onclick="comboSwitchToText('${selectId}')" title="リストにない場合は直接入力">＋新規</button>
+    </div>
+    <div id="${selectId}-text-row" style="display:none;display:none;flex-gap:4px;">
+      <div style="display:flex;gap:4px;align-items:center;">
+        <input id="${selectId}-text" style="flex:1" placeholder="名前を直接入力（保存時にマスタ登録）">
+        <button type="button" class="btn bs bsm" style="font-size:11px;padding:4px 7px;"
+          onclick="comboSwitchToSelect('${selectId}')" title="リストから選択に戻す">リストへ</button>
+      </div>
+      <div style="font-size:10px;color:var(--in);margin-top:2px">💡 保存時にマスタへ自動登録されます</div>
+    </div>`;
+  wrap.innerHTML = html;
+}
+
+function comboSwitchToText(selectId) {
+  const row = $(selectId + '-combo-row');
+  const textRow = $(selectId + '-text-row');
+  if (row) row.style.display = 'none';
+  if (textRow) { textRow.style.display = ''; setTimeout(() => { const t = $(selectId+'-text'); if(t) t.focus(); }, 50); }
+}
+function comboSwitchToSelect(selectId) {
+  const row = $(selectId + '-combo-row');
+  const textRow = $(selectId + '-text-row');
+  if (row) row.style.display = 'flex';
+  if (textRow) textRow.style.display = 'none';
+  const t = $(selectId + '-text'); if (t) t.value = '';
+}
+// セレクトまたはテキスト入力のどちらかからIDを取得（テキスト入力中は'_new:テキスト'を返す）
+function comboGetVal(selectId) {
+  const textRow = $(selectId + '-text-row');
+  if (textRow && textRow.style.display !== 'none') {
+    const t = $(selectId + '-text');
+    return t ? ('_new:' + t.value.trim()) : '';
+  }
+  return gv(selectId) || '';
+}
+// テキスト入力されていた場合にマスタ登録してIDを返す。既存IDの場合はそのまま返す
+function comboResolveId(selectId, masterKey, defaultObj) {
+  const val = comboGetVal(selectId);
+  if (!val) return '';
+  if (!val.startsWith('_new:')) return val; // 既存ID
+  const name = val.slice(5).trim();
+  if (!name) return '';
+  // 同名が既存にないか確認
+  const list = ld(masterKey);
+  const existing = list.find(x => x.name === name);
+  if (existing) return existing.id;
+  // 新規登録
+  const newItem = Object.assign({ id: uid(), name }, defaultObj || {});
+  list.push(newItem);
+  sv(masterKey, list);
+  showBkToast(`✅ 「${name}」をマスタに自動登録しました`);
+  return newItem.id;
+}
+// comboの値をセット（IDならセレクトで選択、なければセレクトを空に）
+function comboSetVal(selectId, id) {
+  comboSwitchToSelect(selectId); // まずセレクトモードに
+  const sel = $(selectId); if (!sel) return;
+  // 対象オプションを選択
+  const opt = [...sel.options].find(o => o.value === id);
+  if (opt) sel.value = id;
+  else sel.value = '';
+}
+// 外部書類作成時の案件チェック（見積書・請求書・発注書は物件・管理会社が必要）
+function checkCaseForExternalDoc(caseId, docTypeName) {
+  if (!caseId) return true; // 案件未選択は別途チェック
+  const c = ld(K.cases).find(x => x.id === caseId);
+  if (!c) return true;
+  const missing = [];
+  if (!c.propertyId) missing.push('物件');
+  if (!c.mgmtId && docTypeName !== '発注書') missing.push('管理会社');
+  if (!c.tenantId) missing.push('入居者');
+  if (missing.length) {
+    alert(`⚠️ ${docTypeName}を作成できません\n\n案件に以下の情報が未入力です：\n・${missing.join('\n・')}\n\n先に案件を編集して情報を入力してください。`);
+    return false;
+  }
+  return true;
+}
+
 function openDocModal(type, id) {
   _docType = type; _docEditId = id || null;
   const cfg = DOC_CFG[type];
@@ -2123,6 +2242,22 @@ function openDocModal(type, id) {
 function docCaseChange() {
   const cid = gv('dm-case'); if (!cid) return;
   const c = ld(K.cases).find(x => x.id === cid); if (!c) return;
+  // 外部書類の場合：未入力項目を警告表示（ブロックはしない・作成時にブロック）
+  if (['quote','invoice','order'].includes(_docType)) {
+    const missing = [];
+    if (!c.propertyId) missing.push('物件');
+    if (_docType !== 'order' && !c.mgmtId) missing.push('管理会社');
+    if (!c.tenantId) missing.push('入居者');
+    const warnEl = $('dm-case-warn');
+    if (warnEl) {
+      if (missing.length) {
+        warnEl.textContent = '⚠️ 案件に未入力項目があります：' + missing.join('・') + '。このまま作成すると情報が空欄になります。';
+        warnEl.style.display = '';
+      } else {
+        warnEl.style.display = 'none';
+      }
+    }
+  }
   const p = ld(K.props).find(x => x.id === c.propertyId);
   const t = ld(K.tenants).find(x => x.id === c.tenantId);
   const m = ld(K.mgmt).find(x => x.id === c.mgmtId);
@@ -2211,6 +2346,15 @@ function updateDISum(sub, tax, total) {
 }
 function saveDoc() {
   const cfg = DOC_CFG[_docType];
+  // 外部書類（見積書・請求書・発注書）は案件の必須情報チェック
+  if (['quote','invoice','order'].includes(_docType)) {
+    const cid = gv('dm-case');
+    if (!cid) {
+      alert('⚠️ 案件を選択してください。\n\n' + cfg.title + 'には関連案件の選択が必要です。');
+      return;
+    }
+    if (!checkCaseForExternalDoc(cid, cfg.title)) return;
+  }
   const list = ld(cfg.key);
   const existing = _docEditId ? JSON.parse(JSON.stringify(list.find(x => x.id === _docEditId) || {})) : null;
   const sub = _docItems.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0);
@@ -5320,8 +5464,8 @@ async function compressPdfToImages(file) {
   aiLog(`📑 総ページ数: ${numPages}ページ`, '#93c5fd');
 
   // 解像度設定（OCRに十分な150DPI相当、サイズ最小化）
-  const SCALE = 1.2;   // 72dpi × 1.2 ≈ 86dpi（軽量・読み取り可能）
-  const QUALITY = 0.75; // JPEG品質 75%
+  const SCALE = 1.0;   // 72dpi（A4文書の文字認識に十分・サイズ削減）
+  const QUALITY = 0.70; // JPEG品質 70%（文字認識への影響なし）
 
   const images = [];
   let totalOrigKB = Math.round(file.size / 1024);
