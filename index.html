@@ -5301,89 +5301,60 @@ function saveCloudSettings() {
 
 // ===== SUPABASE =====
 let _sbClient = null;
-let _sbUser = null;
+// Supabase Auth不要 — システムパスワードで識別するユーザーID
+function sbUserId() {
+  // LocalStorageに保存された固定IDを使用（同一システムパスワードなら同じID）
+  let uid = localStorage.getItem('_sb_uid');
+  if (!uid) { uid = 'user_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('_sb_uid', uid); }
+  return uid;
+}
 function sbInit() {
   const cfg = ldO(CLOUD_KEY);
   if (!cfg.sbUrl || !cfg.sbKey) return;
   if (typeof window.supabase === 'undefined') return;
   try {
-    // URLクリーニング（/rest/v1/などのパスを除去）
     const cleanUrl = cfg.sbUrl.trim().replace(/\/+$/, '').replace(/\/(rest|auth|storage|realtime)(\/.*)?$/, '');
     _sbClient = window.supabase.createClient(cleanUrl, cfg.sbKey);
-    _sbClient.auth.getSession().then(({ data }) => {
-      if (data.session) {
-        _sbUser = data.session.user;
-        sbUpdateStatus(true);
-        sbPullAll();
-      } else {
-        sbUpdateStatus(false);
-      }
-    });
+    sbUpdateStatus(true);
+    sbPullAll();
   } catch(e) { console.error('Supabase init error:', e); }
 }
-function sbUpdateStatus(loggedIn) {
+function sbUpdateStatus(connected) {
   const el = $('sb-status');
   const btn = $('sb-login-btn');
   if (!el) return;
-  if (loggedIn && _sbUser) {
-    el.textContent = '✅ 接続中: ' + _sbUser.email;
+  if (connected && _sbClient) {
+    el.textContent = '✅ 接続中: ' + (ldO(CLOUD_KEY).sbUrl || '').replace('https://','').split('.')[0];
     el.style.color = 'var(--su)';
-    if (btn) btn.textContent = '🔓 ログアウト';
-    if (btn) btn.onclick = sbSignOut;
+    if (btn) { btn.textContent = '🔓 ログアウト'; btn.onclick = sbDisconnect; }
   } else {
     el.textContent = '未接続';
     el.style.color = 'var(--tm)';
-    if (btn) btn.textContent = '🔑 Supabaseにログイン';
-    if (btn) btn.onclick = openSbAuthModal;
+    if (btn) { btn.textContent = '🔑 Supabaseにログイン'; btn.onclick = sbInit; }
   }
 }
-function openSbAuthModal() { openModal('sb-auth-modal'); }
-async function sbSignUp() {
-  const email = gv('sb-email'), pass = gv('sb-password');
-  if (!email || !pass) { $('sb-auth-err').textContent = 'メールとパスワードを入力してください'; return; }
-  if (!_sbClient) { $('sb-auth-err').textContent = '先にSupabase URLとKeyを保存してください'; return; }
-  const { data, error } = await _sbClient.auth.signUp({ email, password: pass });
-  if (error) { $('sb-auth-err').textContent = error.message; return; }
-  if (data.user) {
-    _sbUser = data.user;
-    closeModal('sb-auth-modal');
-    showBkToast('✅ 登録完了！クラウド同期が有効になりました');
-    sbUpdateStatus(true);
-    sbPushAll();
-  } else {
-    $('sb-auth-err').textContent = '確認メールを送りました。メールのリンクをクリックしてください。';
-  }
-}
-async function sbSignIn() {
-  const email = gv('sb-email'), pass = gv('sb-password');
-  if (!email || !pass) { $('sb-auth-err').textContent = 'メールとパスワードを入力してください'; return; }
-  if (!_sbClient) { $('sb-auth-err').textContent = '先にSupabase URLとKeyを保存してください'; return; }
-  const { data, error } = await _sbClient.auth.signInWithPassword({ email, password: pass });
-  if (error) { $('sb-auth-err').textContent = 'ログイン失敗: ' + error.message; return; }
-  _sbUser = data.user;
-  closeModal('sb-auth-modal');
-  showBkToast('✅ ログイン成功！データを同期中...');
-  sbUpdateStatus(true);
-  sbPullAll();
-}
-async function sbSignOut() {
-  if (!_sbClient) return;
-  await _sbClient.auth.signOut();
-  _sbUser = null;
+function openSbAuthModal() { sbInit(); } // 後方互換
+function sbDisconnect() {
+  _sbClient = null;
   sbUpdateStatus(false);
-  showBkToast('ログアウトしました');
+  showBkToast('Supabase接続を切断しました');
 }
+async function sbSignIn() { sbInit(); } // 後方互換
+async function sbSignUp() { sbInit(); } // 後方互換
+async function sbSignOut() { sbDisconnect(); }
 async function sbPushOne(key) {
-  if (!_sbClient || !_sbUser) return;
+  if (!_sbClient) return;
   const val = localStorage.getItem(key);
   if (!val) return;
-  await _sbClient.from('user_data').upsert(
-    { user_id: _sbUser.id, data_key: key, data_value: val, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,data_key' }
-  );
+  try {
+    await _sbClient.from('user_data').upsert(
+      { user_id: sbUserId(), data_key: key, data_value: val, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,data_key' }
+    );
+  } catch(e) { console.warn('sbPushOne error:', e); }
 }
 async function sbPushAll() {
-  if (!_sbClient || !_sbUser) return;
+  if (!_sbClient) return;
   const keys = Object.values(K);
   for (const key of keys) {
     const val = localStorage.getItem(key);
@@ -5392,16 +5363,23 @@ async function sbPushAll() {
   showBkToast('☁️ クラウドに保存しました');
 }
 async function sbPullAll() {
-  if (!_sbClient || !_sbUser) return;
-  const { data, error } = await _sbClient.from('user_data').select('data_key,data_value').eq('user_id', _sbUser.id);
-  if (error || !data) return;
-  data.forEach(row => { localStorage.setItem(row.data_key, row.data_value); });
-  showBkToast('☁️ クラウドからデータを同期しました');
-  renderDashboard();
+  if (!_sbClient) return;
+  try {
+    const { data, error } = await _sbClient.from('user_data').select('data_key,data_value').eq('user_id', sbUserId());
+    if (error || !data || data.length === 0) {
+      // クラウドにデータなし → ローカルデータをプッシュ
+      await sbPushAll();
+      return;
+    }
+    // クラウドのデータをローカルに反映
+    data.forEach(row => { localStorage.setItem(row.data_key, row.data_value); });
+    showBkToast('☁️ クラウドからデータを同期しました');
+    renderDashboard();
+  } catch(e) { console.warn('sbPullAll error:', e); }
 }
 // sv（保存）をフックしてSupabaseにも自動プッシュ
 const _origSv = sv;
-window._hookedSv = (k, v) => { _origSv(k, v); if (_sbClient && _sbUser) sbPushOne(k); };
+window._hookedSv = (k, v) => { _origSv(k, v); if (_sbClient) sbPushOne(k); };
 
 // ===== GEMINI PDF OCR =====
 
