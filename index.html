@@ -5217,6 +5217,8 @@ function pwChangeMode() {
   if (newPw !== confirm) { alert('パスワードが一致しません'); return; }
   localStorage.setItem(PW_KEY, pwHash(newPw));
   alert('✅ パスワードを変更しました');
+  // パスワード変更でユーザーIDが変わるためSupabaseに再プッシュ
+  if (_sbClient) sbPushAll();
 }
 // 設定画面にパスワード変更ボタンを追加する関数
 function renderPwSetting() {
@@ -5303,10 +5305,10 @@ function saveCloudSettings() {
 let _sbClient = null;
 // Supabase Auth不要 — システムパスワードで識別するユーザーID
 function sbUserId() {
-  // LocalStorageに保存された固定IDを使用（同一システムパスワードなら同じID）
-  let uid = localStorage.getItem('_sb_uid');
-  if (!uid) { uid = 'user_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('_sb_uid', uid); }
-  return uid;
+  // ログインパスワードのハッシュをユーザーIDとして使用
+  // → 同じパスワードならどのブラウザ・アカウントからでも同じIDになる
+  const storedHash = localStorage.getItem(PW_KEY) || pwHash(PW_DEFAULT);
+  return 'pw_' + storedHash;
 }
 function sbInit() {
   const cfg = ldO(CLOUD_KEY);
