@@ -7789,6 +7789,25 @@ if (!localStorage.getItem('crm_mail_templates')) localStorage.setItem('crm_mail_
 if (!localStorage.getItem('crm_case_files')) localStorage.setItem('crm_case_files', '[]');
 // GoogleOAuthリダイレクト処理（ページロード時）
 googleHandleRedirect();
+// URLパラメータからSupabase設定を自動読み込み
+(function loadConfigFromUrl() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const sbUrl = params.get('sb');
+    const sbKey = params.get('key');
+    const geminiKey = params.get('gemini');
+    if (sbUrl && sbKey) {
+      const cleanUrl = sbUrl.trim().replace(/\/+$/, '').replace(/\/(rest|auth|storage|realtime)(\/.*)?$/, '');
+      const existing = ldO(CLOUD_KEY);
+      const updated = Object.assign({}, existing, { sbUrl: cleanUrl, sbKey, geminiKey: geminiKey || existing.geminiKey || '' });
+      localStorage.setItem(CLOUD_KEY, JSON.stringify(updated));
+      // URLパラメータをブラウザ履歴から除去（セキュリティ対策）
+      const cleanSearch = '';
+      const newUrl = location.pathname + cleanSearch + location.hash;
+      history.replaceState(null, '', newUrl);
+    }
+  } catch(e) { console.warn('URL config load error:', e); }
+})();
 pwInit();
 sbInit();
 // リロード時にURLハッシュからページを復元
