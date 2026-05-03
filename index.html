@@ -300,6 +300,8 @@ textarea{resize:vertical;min-height:60px;}
     <div class="ni" onclick="nav('photos')"><span class="ic">📷</span>写真管理</div>
     <div class="ni" onclick="nav('floorplans')"><span class="ic">🏠</span>間取り管理</div>
     <div class="nsc">集計・設定</div>
+    <div class="ni" onclick="nav('materials')"><span class="ic">🛒</span>材料マスタ</div>
+    <div class="ni" onclick="nav('casestudies')"><span class="ic">🔨</span>施工事例</div>
     <div class="ni" onclick="nav('report')"><span class="ic">📊</span>月次レポート</div>
     <div class="ni" onclick="nav('settings')"><span class="ic">⚙️</span>自社情報</div>
     <div class="ni" onclick="nav('pricelist')"><span class="ic">💴</span>単価票</div>
@@ -433,7 +435,7 @@ textarea{resize:vertical;min-height:60px;}
   <div class="al ali">🔒 入居者の個人情報はこのPCのブラウザ内にのみ保存されます。</div>
   <div class="card">
     <div class="ch"><div class="srch" style="max-width:280px"><input id="tenant-q" placeholder="氏名・電話番号..." oninput="renderMaster('tenant')"></div></div>
-    <div class="tw"><table><thead><tr><th>氏名</th><th>フリガナ</th><th>電話番号</th><th>メール</th><th>物件・部屋</th><th>退去日</th><th>操作</th></tr></thead><tbody id="tenants-tb"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>氏名</th><th>フリガナ</th><th>電話番号</th><th>メール</th><th>物件・部屋</th><th>解約日</th><th>操作</th></tr></thead><tbody id="tenants-tb"></tbody></table></div>
     <div id="tenants-em" class="es" style="display:none"><div class="eic">👤</div><p>入居者が登録されていません</p></div>
   </div>
 </div>
@@ -552,6 +554,37 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn bg2" id="sb-login-btn" onclick="openSbAuthModal()">🔑 Supabaseにログイン</button>
         <span id="sb-status" style="font-size:12px;color:var(--tm)"></span>
       </div>
+    </div>
+  </div>
+  <!-- Google連携設定 -->
+  <div class="card" style="max-width:580px;margin-top:14px;">
+    <div class="ch"><h3>🔗 Google連携設定（Drive・Gmail）</h3></div>
+    <div class="cb">
+      <p style="font-size:12px;color:var(--tm);margin-bottom:12px">Google Cloud ConsoleでOAuth 2.0クライアントIDを作成し、リダイレクトURIにこのページのURLを登録してください。</p>
+      <div class="fg c1" style="gap:11px">
+        <div class="fgr"><label>Google Client ID</label><input id="s-google-client-id" placeholder="xxxxxxxxx.apps.googleusercontent.com"></div>
+        <div class="fgr">
+          <label>Drive 保存先フォルダ名</label>
+          <input id="s-drive-folder-name" placeholder="例：退去管理システム" value="退去管理システム">
+          <span style="font-size:11px;color:var(--tm)">※Driveのルートに自動作成されます</span>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn bp" onclick="saveGoogleSettings()">💾 Google設定を保存</button>
+        <button class="btn bg2" id="google-login-btn" onclick="googleSignIn()">🔑 Googleにログイン</button>
+        <button class="btn bs" id="google-logout-btn" onclick="googleSignOut()" style="display:none">🔓 ログアウト</button>
+        <span id="google-status" style="font-size:12px;color:var(--tm)">未接続</span>
+      </div>
+    </div>
+  </div>
+  <!-- メールテンプレート設定 -->
+  <div class="card" style="max-width:580px;margin-top:14px;">
+    <div class="ch">
+      <h3>📧 メールテンプレート</h3>
+      <button class="btn bp bsm" onclick="openMailTemplateEdit(null)">＋ 新規作成</button>
+    </div>
+    <div class="cb">
+      <div id="mail-template-list"><p style="color:var(--tm);font-size:13px">テンプレートがありません</p></div>
     </div>
   </div>
 </div>
@@ -781,6 +814,177 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 </div>
 
+<!-- MATERIALS -->
+<div id="pg-materials" class="pg">
+  <div class="pgh">
+    <div><h2>🛒 材料マスタ</h2><p>原価・購入先を登録して施工事例と紐づけ</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bs bsm" onclick="openMaterialImportFromEc()">🔗 EC商品を取り込む</button>
+      <button class="btn bp" onclick="openMaterialModal(null)">＋ 材料を追加</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <div class="srch" style="max-width:260px"><input id="mat-q" placeholder="商品名・メーカー..." oninput="renderMaterials()"></div>
+      <select id="mat-cat-filter" onchange="renderMaterials()" style="font-size:13px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg)">
+        <option value="">すべてのカテゴリ</option>
+        <option>接着剤・コーキング</option>
+        <option>クロス・壁紙</option>
+        <option>床材・フローリング</option>
+        <option>塗料・パテ</option>
+        <option>設備部品</option>
+        <option>清掃用品</option>
+        <option>工具・消耗品</option>
+        <option>その他</option>
+      </select>
+      <select id="mat-shop-filter" onchange="renderMaterials()" style="font-size:13px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg)">
+        <option value="">すべての購入先</option>
+        <option value="ec">ECサイト</option>
+        <option value="store">店舗</option>
+      </select>
+    </div>
+    <div id="materials-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px"></div>
+    <div id="materials-empty" class="es" style="display:none"><div class="eic">🛒</div><p>材料が登録されていません</p></div>
+  </div>
+</div>
+
+<!-- CASE STUDIES -->
+<div id="pg-casestudies" class="pg">
+  <div class="pgh">
+    <div><h2>🔨 施工事例</h2><p>ビフォーアフター写真・使用材料・費用を蓄積</p></div>
+    <button class="btn bp" onclick="openCaseStudyModal(null)">＋ 事例を追加</button>
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <div class="srch" style="max-width:260px"><input id="cs-q" placeholder="補修箇所・内容..." oninput="renderCaseStudies()"></div>
+      <select id="cs-type-filter" onchange="renderCaseStudies()" style="font-size:13px;padding:6px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg)">
+        <option value="">すべての種別</option>
+        <option>壁・クロス</option>
+        <option>床・フローリング</option>
+        <option>トイレ・水回り</option>
+        <option>傷・凹み</option>
+        <option>塗装</option>
+        <option>設備修理</option>
+        <option>その他</option>
+      </select>
+    </div>
+    <div id="casestudies-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
+    <div id="casestudies-empty" class="es" style="display:none"><div class="eic">🔨</div><p>施工事例が登録されていません</p></div>
+  </div>
+</div>
+
+<!-- MATERIAL MODAL -->
+<div class="mo" id="material-modal">
+  <div class="md" style="max-width:600px">
+    <div class="mh"><h3 id="mat-modal-title">🛒 材料追加</h3><button class="mcl" onclick="closeModal('material-modal')">✕</button></div>
+    <div class="mb">
+      <div class="fg" style="gap:11px">
+        <div class="fgr s2"><label>商品名 *</label><input id="mat-name" placeholder="例：スーパーXクリア"></div>
+        <div class="fgr">
+          <label>カテゴリ</label>
+          <select id="mat-cat">
+            <option>接着剤・コーキング</option><option>クロス・壁紙</option><option>床材・フローリング</option>
+            <option>塗料・パテ</option><option>設備部品</option><option>清掃用品</option><option>工具・消耗品</option><option>その他</option>
+          </select>
+        </div>
+        <div class="fgr">
+          <label>購入先種別</label>
+          <select id="mat-shop-type" onchange="matShopTypeChange()">
+            <option value="ec">ECサイト</option>
+            <option value="store">店舗</option>
+          </select>
+        </div>
+        <div class="fgr" id="mat-ec-row"><label>購入先名（EC）</label><input id="mat-shop-name" placeholder="例：Amazon、モノタロウ、楽天"></div>
+        <div class="fgr s2" id="mat-url-row"><label>商品URL</label><input id="mat-url" placeholder="https://..."></div>
+        <div class="fgr" id="mat-store-row" style="display:none"><label>店舗名</label><input id="mat-store-name" placeholder="例：コメリ、カインズ"></div>
+        <div class="fgr"><label>メーカー</label><input id="mat-maker" placeholder="例：セメダイン"></div>
+        <div class="fgr"><label>規格・サイズ</label><input id="mat-spec" placeholder="例：100ml、1m×50m"></div>
+        <div class="fgr"><label>原価（円）</label><input type="number" id="mat-cost" placeholder="0"></div>
+        <div class="fgr"><label>単位</label><input id="mat-unit" placeholder="例：本、㎡、個"></div>
+        <div class="fgr s2"><label>メモ</label><input id="mat-memo" placeholder="使用用途・注意事項など"></div>
+        <div class="fgr s2">
+          <label>商品画像</label>
+          <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+            <img id="mat-img-preview" src="" style="width:80px;height:80px;object-fit:contain;border:1px solid var(--bd);border-radius:6px;display:none;background:#fff">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <input type="file" id="mat-img-file" accept="image/*" style="display:none" onchange="matImgSelected(this)">
+                <button class="btn bs bsm" onclick="document.getElementById('mat-img-file').click()">📷 画像選択</button>
+                <button class="btn bs bsm" id="mat-img-url-btn" onclick="matImgFromUrl()">🔗 URLから取得</button>
+                <button class="btn bd2 bsm" id="mat-img-del" onclick="matImgClear()" style="display:none">削除</button>
+              </div>
+              <input id="mat-img-url-inp" placeholder="画像URLを貼り付け" style="font-size:12px;padding:4px 8px;border:1px solid var(--bd);border-radius:4px;width:260px;background:var(--bg);color:var(--tx)">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('material-modal')">キャンセル</button>
+      <button class="btn bd2 bsm" id="mat-del-btn" onclick="deleteMaterial()" style="display:none">🗑️ 削除</button>
+      <button class="btn bp" onclick="saveMaterial()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- CASE STUDY MODAL -->
+<div class="mo" id="casestudy-modal">
+  <div class="md" style="max-width:680px">
+    <div class="mh"><h3 id="cs-modal-title">🔨 施工事例追加</h3><button class="mcl" onclick="closeModal('casestudy-modal')">✕</button></div>
+    <div class="mb">
+      <div class="fg" style="gap:11px">
+        <div class="fgr">
+          <label>補修種別 *</label>
+          <select id="cs-type">
+            <option>壁・クロス</option><option>床・フローリング</option><option>トイレ・水回り</option>
+            <option>傷・凹み</option><option>塗装</option><option>設備修理</option><option>その他</option>
+          </select>
+        </div>
+        <div class="fgr s2"><label>タイトル *</label><input id="cs-title" placeholder="例：クロス張替え（タバコヤニ汚れ）"></div>
+        <div class="fgr s2"><label>補修内容・詳細</label><textarea id="cs-desc" rows="3" placeholder="補修の詳細、使用した技法など"></textarea></div>
+        <div class="fgr"><label>施工費（円・税抜き）</label><input type="number" id="cs-cost" placeholder="0"></div>
+        <div class="fgr"><label>施工時間</label><input id="cs-time" placeholder="例：2時間、半日"></div>
+        <div class="fgr"><label>関連案件</label><select id="cs-case-id"><option value="">— なし —</option></select></div>
+        <div class="fgr"><label>施工日</label><input type="date" id="cs-date"></div>
+
+        <!-- ビフォーアフター写真 -->
+        <div class="fgr s2">
+          <label>ビフォー写真</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div id="cs-before-thumbs" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+            <input type="file" id="cs-before-file" accept="image/*" multiple style="display:none" onchange="csPhotoSelected(this,'before')">
+            <button class="btn bs bsm" onclick="document.getElementById('cs-before-file').click()">📷 写真追加</button>
+          </div>
+        </div>
+        <div class="fgr s2">
+          <label>アフター写真</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div id="cs-after-thumbs" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+            <input type="file" id="cs-after-file" accept="image/*" multiple style="display:none" onchange="csPhotoSelected(this,'after')">
+            <button class="btn bs bsm" onclick="document.getElementById('cs-after-file').click()">📷 写真追加</button>
+          </div>
+        </div>
+
+        <!-- 使用材料 -->
+        <div class="fgr s2">
+          <label>使用材料（複数選択可）</label>
+          <div id="cs-materials-sel" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--bd);border-radius:6px;min-height:48px;background:var(--bg)">
+            <p id="cs-materials-empty" style="font-size:12px;color:var(--tm);margin:0">材料マスタが未登録です</p>
+          </div>
+          <div id="cs-selected-materials" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"></div>
+        </div>
+
+        <div class="fgr s2"><label>メモ・ポイント</label><textarea id="cs-memo" rows="2" placeholder="施工のコツや注意点など"></textarea></div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('casestudy-modal')">キャンセル</button>
+      <button class="btn bd2 bsm" id="cs-del-btn" onclick="deleteCaseStudy()" style="display:none">🗑️ 削除</button>
+      <button class="btn bp" onclick="saveCaseStudy()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- BACKUP -->
 <div id="pg-backup" class="pg">
   <div class="pgh"><div><h2>💾 バックアップ・復元</h2><p>データをPCにファイル保存し、万が一の時に復元できます</p></div></div>
@@ -964,6 +1168,8 @@ textarea{resize:vertical;min-height:60px;}
         <div class="ti" onclick="stab(this,'ctab-c')">📋 契約情報</div>
         <div class="ti" onclick="stab(this,'ctab-w')">工事明細</div>
         <div class="ti" onclick="stab(this,'ctab-m')">メモ</div>
+        <div class="ti" onclick="stab(this,'ctab-mail');loadCaseMailTab()">📧 メール</div>
+        <div class="ti" onclick="stab(this,'ctab-files');loadCaseFilesTab()">📁 ファイル</div>
       </div>
       <!-- 基本情報タブ -->
       <div id="ctab-b">
@@ -988,7 +1194,7 @@ textarea{resize:vertical;min-height:60px;}
           <div class="fgr"><label>状態</label>
             <select id="c-status"><option>新規</option><option>立ち会い予定</option><option>工事中</option><option>完了</option><option>キャンセル</option></select>
           </div>
-          <div class="fgr"><label>退去日</label><input type="date" id="c-moveout" oninput="calcTenancy()"></div>
+          <div class="fgr"><label>解約日</label><input type="date" id="c-moveout" oninput="calcTenancy()"></div>
           <div class="fgr"><label>立ち会い日</label><input type="date" id="c-insp"></div>
           <div class="fgr"><label>工事開始予定</label><input type="date" id="c-ws"></div>
           <div class="fgr"><label>工事完了予定</label><input type="date" id="c-we"></div>
@@ -1082,8 +1288,122 @@ textarea{resize:vertical;min-height:60px;}
           <div class="fgr"><label>その他備考</label><textarea id="c-memo" rows="3"></textarea></div>
         </div>
       </div>
+      <!-- メールタブ -->
+      <div id="ctab-mail" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <button class="btn bp bsm" onclick="openMailCompose()">✉️ 新規メール送信</button>
+          <button class="btn bs bsm" onclick="gmailFetchForCase()">🔄 Gmailから取り込む</button>
+        </div>
+        <div id="case-mail-list" style="display:flex;flex-direction:column;gap:8px">
+          <p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">メール履歴がありません</p>
+        </div>
+      </div>
+      <!-- ファイルタブ -->
+      <div id="ctab-files" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <button class="btn bp bsm" onclick="uploadScanPdf()">📎 スキャンPDFをアップロード</button>
+          <button class="btn bs bsm" onclick="openDriveFolderForCase()">📂 Driveフォルダを開く</button>
+          <button class="btn bg2 bsm" id="send-settlement-btn" onclick="openSendSettlementMail()" style="display:none">📧 精算書を退去者に送る</button>
+        </div>
+        <div id="case-file-list" style="display:flex;flex-direction:column;gap:6px">
+          <p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">ファイルがありません</p>
+        </div>
+      </div>
     </div>
     <div class="mf"><button class="btn bs" onclick="closeModal('case-modal')">キャンセル</button><button class="btn bp" onclick="saveCase()">保存</button></div>
+  </div>
+</div>
+
+<!-- ===== MAIL COMPOSE MODAL ===== -->
+<div class="mo" id="mail-compose-modal">
+  <div class="md" style="max-width:680px">
+    <div class="mh"><h3>✉️ メール作成</h3><button class="mcl" onclick="closeModal('mail-compose-modal')">✕</button></div>
+    <div class="mb">
+      <div class="fg c1" style="gap:10px">
+        <div class="fgr">
+          <label>テンプレート</label>
+          <div style="display:flex;gap:8px">
+            <select id="mc-template" onchange="applyMailTemplate()" style="flex:1">
+              <option value="">— テンプレートを選択 —</option>
+            </select>
+          </div>
+        </div>
+        <div class="fgr"><label>宛先 *</label><input id="mc-to" type="email" placeholder="例：info@mgmt.co.jp"></div>
+        <div class="fgr"><label>CC</label><input id="mc-cc" type="email" placeholder="任意"></div>
+        <div class="fgr"><label>件名 *</label><input id="mc-subject" placeholder="件名を入力"></div>
+        <div class="fgr"><label>本文 *</label><textarea id="mc-body" rows="10" style="font-family:sans-serif;font-size:13px"></textarea></div>
+        <div class="fgr">
+          <label>スキャンPDF添付</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="file" id="mc-attach-file" accept="application/pdf,image/*" style="display:none" onchange="mcAttachSelected(this)">
+            <button class="btn bs bsm" onclick="document.getElementById('mc-attach-file').click()">📎 ファイル選択</button>
+            <span id="mc-attach-name" style="font-size:12px;color:var(--tm)">未選択</span>
+            <button class="btn bs bsm" id="mc-attach-clear" onclick="mcAttachClear()" style="display:none">✕ 削除</button>
+          </div>
+        </div>
+        <div id="mc-drive-upload-row" style="display:none">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="mc-save-drive" checked>
+            <span>📁 Google Driveにも保存する</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('mail-compose-modal')">キャンセル</button>
+      <button class="btn bs" onclick="mcSaveDraft()">下書き保存</button>
+      <button class="btn bp" onclick="mcSend()">📤 送信（Gmail）</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIL TEMPLATE EDIT MODAL ===== -->
+<div class="mo" id="mail-template-modal">
+  <div class="md" style="max-width:580px">
+    <div class="mh"><h3 id="mt-modal-title">📧 テンプレート作成</h3><button class="mcl" onclick="closeModal('mail-template-modal')">✕</button></div>
+    <div class="mb">
+      <div class="fg c1" style="gap:10px">
+        <div class="fgr"><label>テンプレート名 *</label><input id="mt-name" placeholder="例：精算書送付"></div>
+        <div class="fgr">
+          <label>宛先種別</label>
+          <select id="mt-to-type">
+            <option value="mgmt">管理会社</option>
+            <option value="tenant">入居者</option>
+            <option value="custom">手動入力</option>
+          </select>
+        </div>
+        <div class="fgr"><label>件名</label><input id="mt-subject" placeholder="例：【精算書送付】{{物件名}}{{部屋番号}}号室 退去精算のご案内"></div>
+        <div class="fgr">
+          <label>本文</label>
+          <div style="font-size:11px;color:var(--tm);margin-bottom:4px">使用できる変数：{{物件名}} {{部屋番号}} {{入居者名}} {{管理会社名}} {{解約日}} {{担当者名}}</div>
+          <textarea id="mt-body" rows="10" style="font-family:sans-serif;font-size:13px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('mail-template-modal')">キャンセル</button>
+      <button class="btn bd2 bsm" id="mt-delete-btn" onclick="deleteMailTemplate()" style="display:none">🗑️ 削除</button>
+      <button class="btn bp" onclick="saveMailTemplate()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIL DETAIL MODAL ===== -->
+<div class="mo" id="mail-detail-modal">
+  <div class="md" style="max-width:620px">
+    <div class="mh"><h3 id="mdm-subject" style="font-size:15px">メール詳細</h3><button class="mcl" onclick="closeModal('mail-detail-modal')">✕</button></div>
+    <div class="mb">
+      <div style="font-size:12px;color:var(--tm);margin-bottom:10px">
+        <span id="mdm-meta"></span>
+      </div>
+      <div id="mdm-body" style="white-space:pre-wrap;font-size:13px;line-height:1.7;background:var(--bg);padding:14px;border-radius:6px;max-height:360px;overflow-y:auto"></div>
+      <div id="mdm-attach" style="margin-top:10px"></div>
+      <div id="mdm-drive-status" style="margin-top:10px;font-size:12px;color:var(--tm)"></div>
+    </div>
+    <div class="mf">
+      <button class="btn bs" onclick="closeModal('mail-detail-modal')">閉じる</button>
+      <button class="btn bp" onclick="openMailReply()">↩️ 返信</button>
+    </div>
   </div>
 </div>
 
@@ -1423,6 +1743,8 @@ function nav(page) {
     photos: renderPhotos,
     floorplans: renderFloorplans,
     pricelist: renderPriceList,
+    materials: renderMaterials,
+    casestudies: renderCaseStudies,
     backup: renderBackupPage,
     report: renderReport,
     settings: loadSettings
@@ -1516,6 +1838,7 @@ function renderDashboard() {
 let _caseEditId = null, _caseWI = [];
 function openCaseModal(id) {
   _caseEditId = id || null;
+  window._editingCaseId = id || null; // Google Drive/Gmail連携用
   $('cm-title').textContent = id ? '案件編集' : '新規案件';
   const props = ld(K.props), tenants = ld(K.tenants), mgmts = ld(K.mgmt), primes = ld(K.prime);
   const c = id ? (ld(K.cases).find(x => x.id === id) || {}) : {};
@@ -1525,7 +1848,7 @@ function openCaseModal(id) {
   initCombo('cbox-c-mgmt',   'c-mgmt',   mgmts,   m => m.name, c.mgmtId || '', '');
   initCombo('cbox-c-prime',  'c-prime',  primes,  p => p.name, c.primeId || '', '');
   document.querySelectorAll('#case-modal .ti').forEach((t, i) => t.classList.toggle('active', i === 0));
-  ['ctab-b','ctab-c','ctab-w','ctab-m'].forEach((t, i) => { const el = $(t); if (el) el.style.display = i === 0 ? '' : 'none'; });
+  ['ctab-b','ctab-c','ctab-w','ctab-m','ctab-mail','ctab-files'].forEach((t, i) => { const el = $(t); if (el) el.style.display = i === 0 ? '' : 'none'; });
   if (id) {
     sv2('c-room', c.room); sv2('c-status', c.status);
     sv2('c-moveout', c.moveoutDate); sv2('c-insp', c.inspDate);
@@ -1579,7 +1902,7 @@ function calcTenancy() {
   if (days < 0) { months--; }
   // 月が負 → 年を1繰り下げ
   if (months < 0) { months += 12; years--; }
-  // 端数判定: 退去日がその月の末日なら満月とみなす
+  // 端数判定: 解約日がその月の末日なら満月とみなす
   const lastDay = new Date(d2.getFullYear(), d2.getMonth()+1, 0).getDate();
   const isMonthEnd = d2.getDate() === lastDay;
   // 日付が入居日と同じか末日なら端数月を加算
@@ -1594,7 +1917,7 @@ function calcTenancy() {
   const totalMonths = years * 12 + months;
   disp.textContent = text + '（計' + totalMonths + 'か月）';
   disp.style.color = 'var(--pr)';
-  // 退去日が変わったら日割りも再計算
+  // 解約日が変わったら日割りも再計算
   calcHiwari();
 }
 
@@ -1683,7 +2006,7 @@ function prompt_contract_text() {
   "managementContact": "管理会社担当者名",
   "moveinDate": "入居日・契約開始日（YYYY-MM-DD）",
   "contractEndDate": "契約終了日・解約日（YYYY-MM-DD）",
-  "moveoutDate": "退去日（YYYY-MM-DD、解約日と異なる場合）",
+  "moveoutDate": "解約日（YYYY-MM-DD、解約日と異なる場合）",
   "area": "専有面積（㎡、数値のみ）",
   "madori": "間取り（例：1LDK）",
   "rent": "月額家賃（数値のみ）",
@@ -1802,7 +2125,7 @@ function applyContractData(data) {
   showBkToast('✅ 契約書の情報を自動入力しました');
   // 契約情報タブを表示
   const tabs = document.querySelectorAll('#case-modal .ti');
-  const panes = ['ctab-b','ctab-c','ctab-w','ctab-m'];
+  const panes = ['ctab-b','ctab-c','ctab-w','ctab-m','ctab-mail','ctab-files'];
   tabs.forEach((t,i) => t.classList.toggle('active', i===1));
   panes.forEach((p,i) => { const el=$(p); if(el) el.style.display = i===1?'':'none'; });
 }
@@ -2293,33 +2616,138 @@ function docCaseChange() {
   }
 }
 const SETTLEMENT_CATS = ['クリーニング','クロス工事','床工事','建具・設備工事','専門職工事','その他工事'];
+
+// カテゴリ別デフォルト耐用年数（国交省ガイドライン準拠）
+const DEFAULT_USEFUL_LIFE = {
+  'クリーニング': 0,      // 経年劣化考慮なし（全額入居者）
+  'クロス工事': 6,
+  '床工事': 6,
+  '建具・設備工事': 6,
+  '専門職工事': 0,
+  'その他工事': 6
+};
+
+// 案件の入居期間（年）を取得
+function getCaseElapsedYears() {
+  const caseId = _docEditId
+    ? (ld(DOC_CFG['settlement'].key).find(x=>x.id===_docEditId)||{}).caseId
+    : gv('dm-case');
+  if (!caseId) return null;
+  const c = ld(K.cases).find(x => x.id === caseId);
+  if (!c || !c.moveinDate || !c.moveoutDate) return null;
+  const d1 = new Date(c.moveinDate);
+  const d2 = new Date(c.moveoutDate);
+  const diffMs = d2 - d1;
+  return Math.max(0, diffMs / (1000 * 60 * 60 * 24 * 365.25));
+}
+
+// 入居者負担率を計算（残存価値率）
+function calcTenantRatio(usefulLife, elapsedYears) {
+  if (!usefulLife || usefulLife <= 0) return 1.0; // 耐用年数0=全額入居者
+  if (elapsedYears === null || elapsedYears === undefined) return null; // 計算不可
+  const remaining = Math.max(0, usefulLife - elapsedYears);
+  return Math.min(1.0, remaining / usefulLife);
+}
+
 function renderDI() {
   const con = $('di-con');
   if (!_docItems.length) { con.innerHTML = '<div style="color:var(--tm);font-size:13px">明細なし</div>'; updateDISum(); return; }
   const isSettle = _docType === 'settlement';
-  // ヘッダー行
-  if (isSettle) {
-    const hdr = document.querySelector('#di-con').previousElementSibling;
-    if (hdr) hdr.style.gridTemplateColumns = '1fr 2fr 1fr 1fr 2fr auto';
-  }
+  const elapsedYears = isSettle ? getCaseElapsedYears() : null;
+  const elapsedYearsDisp = elapsedYears !== null ? Math.round(elapsedYears * 10) / 10 : null;
+
   con.innerHTML = _docItems.map((item, i) => {
-    const catSel = isSettle ? `<select style="font-size:11px;" oninput="_docItems[${i}].cat=this.value">
-      <option value="">カテゴリ</option>
-      ${SETTLEMENT_CATS.map(c=>`<option value="${c}"${c===item.cat?' selected':''}>${c}</option>`).join('')}
-    </select>` : '';
-    return `<div style="display:grid;grid-template-columns:${isSettle?'1fr 2fr 1fr 1fr 2fr auto':'3fr 1fr 1fr 2fr auto'};gap:6px;align-items:center;margin-bottom:5px">
-      ${catSel}
-      <input placeholder="内容・品名" value="${esc(item.desc || item.name || '')}" oninput="_docItems[${i}].desc=this.value">
-      <input type="number" placeholder="1" value="${item.qty||''}" oninput="_docItems[${i}].qty=this.value;calcDI();calcSettlementTotal()">
-      <input placeholder="式" value="${esc(item.unit || '式')}" oninput="_docItems[${i}].unit=this.value">
-      <input type="number" placeholder="0" value="${item.price||0}" oninput="_docItems[${i}].price=this.value;calcDI();calcSettlementTotal()">
-      <button class="btn bsm bd2" onclick="_docItems.splice(${i},1);renderDI()">✕</button>
+    if (!isSettle) {
+      // 精算書以外：シンプル表示
+      return `<div style="display:grid;grid-template-columns:3fr 1fr 1fr 2fr auto;gap:6px;align-items:center;margin-bottom:5px">
+        <input placeholder="内容・品名" value="${esc(item.desc||item.name||'')}" oninput="_docItems[${i}].desc=this.value">
+        <input type="number" placeholder="1" value="${item.qty||''}" oninput="_docItems[${i}].qty=this.value;calcDI();calcSettlementTotal()">
+        <input placeholder="式" value="${esc(item.unit||'式')}" oninput="_docItems[${i}].unit=this.value">
+        <input type="number" placeholder="0" value="${item.price||0}" oninput="_docItems[${i}].price=this.value;calcDI();calcSettlementTotal()">
+        <button class="btn bsm bd2" onclick="_docItems.splice(${i},1);renderDI();calcSettlementTotal()">✕</button>
+      </div>`;
+    }
+
+    // === 精算書：耐用年数・按分計算付き ===
+    const cat = item.cat || 'クロス工事';
+    const defaultUL = DEFAULT_USEFUL_LIFE[cat] !== undefined ? DEFAULT_USEFUL_LIFE[cat] : 6;
+    const usefulLife = item.usefulLife !== undefined && item.usefulLife !== '' ? Number(item.usefulLife) : defaultUL;
+    const elapsed    = item.elapsed    !== undefined && item.elapsed    !== '' ? Number(item.elapsed)    : (elapsedYearsDisp !== null ? elapsedYearsDisp : '');
+    const basePrice  = (Number(item.qty)||1) * (Number(item.price)||0);
+
+    let tenantRatio, tenantAmt, mgmtAmt;
+    if (usefulLife <= 0) {
+      tenantRatio = 1.0; tenantAmt = basePrice; mgmtAmt = 0;
+    } else if (elapsed !== '' && elapsed !== undefined) {
+      tenantRatio = Math.max(0, Math.min(1, (usefulLife - Number(elapsed)) / usefulLife));
+      tenantAmt = Math.round(basePrice * tenantRatio);
+      mgmtAmt   = basePrice - tenantAmt;
+    } else {
+      tenantRatio = null; tenantAmt = null; mgmtAmt = null;
+    }
+
+    // 手動上書き率がある場合
+    if (item.manualRatio !== undefined && item.manualRatio !== '') {
+      tenantRatio = Math.min(1, Math.max(0, Number(item.manualRatio) / 100));
+      tenantAmt = Math.round(basePrice * tenantRatio);
+      mgmtAmt   = basePrice - tenantAmt;
+    }
+
+    const ratioDisp  = tenantRatio !== null ? Math.round(tenantRatio * 100) : '—';
+    const tenantDisp = tenantAmt  !== null ? tenantAmt.toLocaleString()  : '—';
+    const mgmtDisp   = mgmtAmt   !== null ? mgmtAmt.toLocaleString()    : '—';
+    const catColor   = tenantRatio !== null ? (tenantRatio >= 0.8 ? '#fee2e2' : tenantRatio >= 0.4 ? '#fef3c7' : '#dcfce7') : '#f3f4f6';
+
+    return `
+    <div style="background:${catColor};border-radius:6px;padding:8px;margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:1.2fr 2fr 0.8fr 0.8fr 1.8fr;gap:6px;align-items:center;margin-bottom:4px">
+        <select style="font-size:11px;" oninput="_docItems[${i}].cat=this.value;_docItems[${i}].usefulLife='';renderDI();calcSettlementTotal()">
+          <option value="">カテゴリ</option>
+          ${SETTLEMENT_CATS.map(c=>`<option value="${c}"${c===item.cat?' selected':''}>${c}</option>`).join('')}
+        </select>
+        <input placeholder="内容・品名" value="${esc(item.desc||item.name||'')}" oninput="_docItems[${i}].desc=this.value">
+        <input type="number" placeholder="数量" value="${item.qty||1}" oninput="_docItems[${i}].qty=this.value;renderDI();calcSettlementTotal()" style="font-size:12px">
+        <input placeholder="単位" value="${esc(item.unit||'式')}" oninput="_docItems[${i}].unit=this.value" style="font-size:12px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" placeholder="単価" value="${item.price||0}" oninput="_docItems[${i}].price=this.value;renderDI();calcDI();calcSettlementTotal()" style="font-size:12px;width:80px">
+          <button class="btn bsm bd2" onclick="_docItems.splice(${i},1);renderDI();calcSettlementTotal()" style="padding:2px 6px">✕</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:6px;align-items:center;font-size:11px">
+        <label style="display:flex;flex-direction:column;gap:2px">
+          <span style="color:var(--tm)">耐用年数</span>
+          <div style="display:flex;align-items:center;gap:2px">
+            <input type="number" min="0" max="50" value="${usefulLife}" oninput="_docItems[${i}].usefulLife=this.value;_docItems[${i}].manualRatio='';renderDI();calcSettlementTotal()" style="width:44px;font-size:12px;padding:2px 4px;border:1px solid var(--bd);border-radius:4px;background:var(--wh)">
+            <span style="color:var(--tm)">年</span>
+          </div>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:2px">
+          <span style="color:var(--tm)">経過年数${elapsedYearsDisp!==null?'<span style="color:var(--pr)">(自動)</span>':''}</span>
+          <div style="display:flex;align-items:center;gap:2px">
+            <input type="number" min="0" step="0.1" value="${elapsed}" placeholder="${elapsedYearsDisp!==null?elapsedYearsDisp:'手動入力'}" oninput="_docItems[${i}].elapsed=this.value;_docItems[${i}].manualRatio='';renderDI();calcSettlementTotal()" style="width:52px;font-size:12px;padding:2px 4px;border:1px solid var(--bd);border-radius:4px;background:var(--wh)">
+            <span style="color:var(--tm)">年</span>
+          </div>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:2px">
+          <span style="color:var(--tm)">入居者負担率<span style="color:var(--su);font-size:10px">(手動)</span></span>
+          <div style="display:flex;align-items:center;gap:2px">
+            <input type="number" min="0" max="100" value="${item.manualRatio!==undefined&&item.manualRatio!==''?item.manualRatio:''}" placeholder="${ratioDisp}" oninput="_docItems[${i}].manualRatio=this.value;renderDI();calcSettlementTotal()" style="width:44px;font-size:12px;padding:2px 4px;border:1px solid var(--bd);border-radius:4px;background:var(--wh)">
+            <span style="color:var(--tm)">%</span>
+          </div>
+        </label>
+        <div style="background:rgba(255,255,255,0.7);border-radius:4px;padding:4px 8px">
+          <span style="color:var(--da);font-weight:700">退去者: ¥${tenantDisp}</span>
+          <span style="color:var(--tm);margin:0 4px">/</span>
+          <span style="color:var(--in);font-weight:700">管理会社: ¥${mgmtDisp}</span>
+          <span style="color:var(--tm);font-size:10px;margin-left:4px">(負担率${ratioDisp}%)</span>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
 function addDI() {
-  const cat = _docType === 'settlement' ? 'クリーニング' : '';
-  _docItems.push({desc:'', qty:1, unit:'式', price:0, cat});
+  const cat = _docType === 'settlement' ? 'クロス工事' : '';
+  _docItems.push({desc:'', qty:1, unit:'式', price:0, cat, usefulLife:'', elapsed:'', manualRatio:''});
   renderDI();
 }
 function calcSettlementTotal() {
@@ -2330,11 +2758,39 @@ function calcSettlementTotal() {
   const C = Number(gv('dm-deposit')||0);
   const D = Number(gv('dm-hiwari')||0);
   const grand = totalA + B - C - D;
+
+  // 耐用年数按分による退去者・管理会社別集計
+  const elapsedYearsDefault = getCaseElapsedYears();
+  let tenantSub = 0, mgmtSub = 0;
+  _docItems.forEach(i => {
+    const baseAmt = (Number(i.qty)||1) * (Number(i.price)||0);
+    if (baseAmt === 0) return;
+    let ratio;
+    if (i.manualRatio !== undefined && i.manualRatio !== '') {
+      ratio = Math.min(1.0, Math.max(0, Number(i.manualRatio) / 100));
+    } else {
+      const ul = i.usefulLife !== undefined && i.usefulLife !== ''
+        ? Number(i.usefulLife)
+        : (DEFAULT_USEFUL_LIFE[i.cat] !== undefined ? DEFAULT_USEFUL_LIFE[i.cat] : 6);
+      const el = i.elapsed !== undefined && i.elapsed !== ''
+        ? Number(i.elapsed)
+        : elapsedYearsDefault;
+      ratio = calcTenantRatio(ul, el);
+    }
+    if (ratio === null) { tenantSub += baseAmt; return; } // 不明な場合は退去者負担
+    tenantSub += Math.round(baseAmt * ratio);
+    mgmtSub   += baseAmt - Math.round(baseAmt * ratio);
+  });
+  const tenantTotal = Math.floor(tenantSub * 1.1);
+  const mgmtTotal   = Math.floor(mgmtSub  * 1.1);
+
   const el = $('dm-grand-total-row');
   if (!el) return;
-  el.innerHTML = `税抜: ${sub.toLocaleString()}円　消費税: ${tax.toLocaleString()}円　税込(A): ${totalA.toLocaleString()}円<br>` +
+  el.innerHTML =
+    `税抜: ${sub.toLocaleString()}円　消費税: ${tax.toLocaleString()}円　税込(A): ${totalA.toLocaleString()}円<br>` +
     `<span style="font-size:14px">最終精算額 (A+B-C-D) = ${grand.toLocaleString()}円</span>` +
-    `${grand < 0 ? '　<span style="color:#16a34a">（返金 ' + Math.abs(grand).toLocaleString() + '円）</span>' : ''}`;
+    `${grand < 0 ? '　<span style="color:#16a34a">（返金 ' + Math.abs(grand).toLocaleString() + '円）</span>' : ''}<br>` +
+    `<span style="font-size:12px;color:var(--tm)">　<span style="color:var(--da)">退去者請求(税込): <strong>¥${tenantTotal.toLocaleString()}</strong></span>　　<span style="color:var(--in)">管理会社請求(税込): <strong>¥${mgmtTotal.toLocaleString()}</strong></span></span>`;
 }
 function calcDI() {
   const sub = _docItems.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.price) || 0), 0);
@@ -2382,6 +2838,25 @@ function saveDoc() {
     violationFee:  _docType === 'settlement' ? Number(gv('dm-violation')||0) : undefined,
     payDue:        _docType === 'settlement' ? gv('dm-paydue') : undefined,
     bankInfo:      _docType === 'settlement' ? gv('dm-bankinfo') : undefined,
+    // 耐用年数按分による退去者・管理会社別請求額（精算書のみ）
+    tenantTotalTax: _docType === 'settlement' ? (() => {
+      const elapsedDef = getCaseElapsedYears();
+      let ts = 0;
+      _docItems.forEach(i => {
+        const base = (Number(i.qty)||1)*(Number(i.price)||0);
+        if (!base) return;
+        let ratio;
+        if (i.manualRatio !== undefined && i.manualRatio !== '') {
+          ratio = Math.min(1, Math.max(0, Number(i.manualRatio)/100));
+        } else {
+          const ul = i.usefulLife !== undefined && i.usefulLife !== '' ? Number(i.usefulLife) : (DEFAULT_USEFUL_LIFE[i.cat]??6);
+          const el = i.elapsed !== undefined && i.elapsed !== '' ? Number(i.elapsed) : elapsedDef;
+          ratio = calcTenantRatio(ul, el);
+        }
+        ts += Math.round(base * (ratio ?? 1.0));
+      });
+      return Math.floor(ts * 1.1);
+    })() : undefined,
     updatedAt: new Date().toISOString()
   };
   if (!_docEditId) data.createdAt = new Date().toISOString();
@@ -2441,7 +2916,7 @@ const MC = {
     {id:'tn',label:'氏名 *'},{id:'tk',label:'フリガナ'},
     {id:'tph',label:'電話番号'},{id:'tem',label:'メール',type:'email'},
     {id:'tprop',label:'物件',type:'sel',key:K.props},{id:'trm',label:'部屋番号'},
-    {id:'tmi',label:'入居日',type:'date'},{id:'tmo',label:'退去日',type:'date'},
+    {id:'tmi',label:'入居日',type:'date'},{id:'tmo',label:'解約日',type:'date'},
     {id:'tmemo',label:'備考',type:'ta',span:2}
   ]},
   address: { title:'宛名', fields:[
@@ -2697,6 +3172,8 @@ function loadSettings() {
     window._sLogoData = s.logo;
   }
   renderPwSetting();
+  loadGoogleSettings();
+  renderMailTemplateList();
 }
 function saveSettings() {
   const fields = ['company','owner','zip','address','phone','fax','email','bank','invno','note'];
@@ -5343,7 +5820,7 @@ function aiDone(data) {
     data.roomNumber && `🚪 部屋: ${data.roomNumber}`,
     data.tenantName && `👤 入居者: ${data.tenantName}`,
     data.managementCompany && `🏦 管理会社: ${data.managementCompany}`,
-    data.moveoutDate && `📅 退去日: ${data.moveoutDate}`,
+    data.moveoutDate && `📅 解約日: ${data.moveoutDate}`,
     data.totalAmount && `💴 金額: ¥${Number(data.totalAmount).toLocaleString()}`,
   ].filter(Boolean);
   summary.innerHTML = items.map(s => `<div>${s}</div>`).join('');
@@ -5431,7 +5908,7 @@ function prompt_text() {
   "roomNumber": "部屋番号",
   "tenantName": "入居者氏名",
   "tenantPhone": "入居者電話番号",
-  "moveoutDate": "退去日（YYYY-MM-DD形式）",
+  "moveoutDate": "解約日（YYYY-MM-DD形式）",
   "inspectionDate": "立ち会い・検査日（YYYY-MM-DD形式）",
   "managementCompany": "管理会社名",
   "managementPhone": "管理会社電話番号",
@@ -5630,7 +6107,7 @@ async function geminiReadPdf(file) {
     aiLog(`✅ ${found.length}項目を抽出しました`, '#4ade80');
     found.forEach(([k, v]) => {
       const labels = {propertyName:'物件名',propertyAddress:'住所',roomNumber:'部屋番号',
-        tenantName:'入居者',tenantPhone:'入居者電話',moveoutDate:'退去日',
+        tenantName:'入居者',tenantPhone:'入居者電話',moveoutDate:'解約日',
         inspectionDate:'立ち会い日',managementCompany:'管理会社',managementPhone:'管理会社電話',
         managementContact:'担当者',totalAmount:'合計金額',notes:'備考'};
       aiLog(`  ${labels[k]||k}: ${v}`, '#e2e8f0');
@@ -5664,7 +6141,7 @@ function applyGeminiData(data) {
     // 物件・部屋番号
     sv2('c-room', data.roomNumber || '');
     sv2('c-memo', (data.notes || '') + (data.totalAmount ? '\n合計金額: ¥' + Number(data.totalAmount).toLocaleString() : ''));
-    // 立ち会い日・退去日
+    // 立ち会い日・解約日
     if (data.inspectionDate) sv2('c-insp', data.inspectionDate);
     if (data.moveoutDate) sv2('c-moveout', data.moveoutDate);
     showBkToast('✅ AIが情報を自動入力しました');
@@ -5934,7 +6411,7 @@ const MAX_LOG_ENTRIES = 2000; // 最大保持件数
 // フィールド名の日本語ラベル対応表
 const FIELD_LABELS = {
   // 案件
-  room:'部屋番号', status:'状態', moveoutDate:'退去日', inspDate:'立ち会い日',
+  room:'部屋番号', status:'状態', moveoutDate:'解約日', inspDate:'立ち会い日',
   workStart:'工事開始', workEnd:'工事完了', wsum:'工事概要', imemo:'立ち会いメモ', memo:'備考',
   moveinDate:'入居日', contractEndDate:'解約日', area:'専有面積', madori:'間取り',
   rent:'月額家賃', kanrihi:'共益費', hiwariMode:'日割り方式', hiwariDays:'日割り日数',
@@ -6138,7 +6615,1200 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('scroll', setAppHeight);
 }
 
+// ============================================================
+// GOOGLE OAuth2 + Drive + Gmail 連携
+// ============================================================
+const GOOGLE_KEY = 'crm_google_cfg';
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send'
+].join(' ');
+
+let _googleToken = null; // { access_token, expires_at }
+let _gDriveRootId = null; // 案件管理システムのDriveフォルダID
+
+// ---------- 設定保存/読込 ----------
+function saveGoogleSettings() {
+  const cfg = ldO(CLOUD_KEY);
+  cfg.googleClientId = gv('s-google-client-id').trim();
+  cfg.driveFolderName = gv('s-drive-folder-name').trim() || '退去管理システム';
+  localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg));
+  showBkToast('✅ Google設定を保存しました');
+}
+function loadGoogleSettings() {
+  const cfg = ldO(CLOUD_KEY);
+  sv2('s-google-client-id', cfg.googleClientId || '');
+  sv2('s-drive-folder-name', cfg.driveFolderName || '退去管理システム');
+  // 保存済みトークンを復元
+  const saved = localStorage.getItem('crm_google_token');
+  if (saved) {
+    try {
+      const t = JSON.parse(saved);
+      if (t.expires_at && Date.now() < t.expires_at) {
+        _googleToken = t;
+        googleUpdateStatus(true, t.email);
+      } else {
+        localStorage.removeItem('crm_google_token');
+      }
+    } catch(e) {}
+  }
+}
+function googleUpdateStatus(loggedIn, email) {
+  const el = $('google-status');
+  const loginBtn = $('google-login-btn');
+  const logoutBtn = $('google-logout-btn');
+  if (!el) return;
+  if (loggedIn) {
+    el.textContent = '✅ 接続中: ' + (email || '');
+    el.style.color = 'var(--su)';
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = '';
+  } else {
+    el.textContent = '未接続';
+    el.style.color = 'var(--tm)';
+    if (loginBtn) loginBtn.style.display = '';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  }
+}
+
+// ---------- OAuth2 サインイン ----------
+function googleSignIn() {
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.googleClientId) {
+    alert('Google Client IDを設定・保存してください'); return;
+  }
+  // OAuth2 implicit flow（SPAで使用）
+  const redirectUri = location.origin + location.pathname;
+  const params = new URLSearchParams({
+    client_id: cfg.googleClientId,
+    redirect_uri: redirectUri,
+    response_type: 'token',
+    scope: GOOGLE_SCOPES,
+    include_granted_scopes: 'true',
+    prompt: 'consent'
+  });
+  // state にページを保存してリダイレクト後に復元
+  const state = encodeURIComponent(location.hash || '#dashboard');
+  params.set('state', state);
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+}
+function googleSignOut() {
+  _googleToken = null;
+  _gDriveRootId = null;
+  localStorage.removeItem('crm_google_token');
+  googleUpdateStatus(false, '');
+  showBkToast('Googleからログアウトしました');
+}
+// リダイレクト後のトークン取得（ページロード時に呼ぶ）
+function googleHandleRedirect() {
+  const hash = location.hash;
+  if (!hash.includes('access_token=')) return;
+  const params = new URLSearchParams(hash.replace('#', ''));
+  const token = params.get('access_token');
+  const expiresIn = parseInt(params.get('expires_in') || '3600');
+  if (!token) return;
+  // ユーザーinfo取得
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + token }
+  }).then(r => r.json()).then(info => {
+    _googleToken = {
+      access_token: token,
+      expires_at: Date.now() + expiresIn * 1000,
+      email: info.email || ''
+    };
+    localStorage.setItem('crm_google_token', JSON.stringify(_googleToken));
+    googleUpdateStatus(true, _googleToken.email);
+    showBkToast('✅ Googleにログインしました: ' + (_googleToken.email || ''));
+    // URLのトークンフラグメントを除去
+    history.replaceState(null, '', location.pathname);
+  }).catch(e => console.error('Google userinfo error:', e));
+}
+function googleAuthHeader() {
+  if (!_googleToken || Date.now() > _googleToken.expires_at) {
+    alert('Googleのセッションが切れています。再度ログインしてください。');
+    return null;
+  }
+  return { Authorization: 'Bearer ' + _googleToken.access_token, 'Content-Type': 'application/json' };
+}
+
+// ---------- Drive: フォルダ作成・取得 ----------
+async function driveEnsureRootFolder() {
+  if (_gDriveRootId) return _gDriveRootId;
+  const headers = googleAuthHeader();
+  if (!headers) return null;
+  const cfg = ldO(CLOUD_KEY);
+  const folderName = cfg.driveFolderName || '退去管理システム';
+  // 既存フォルダを検索
+  const q = encodeURIComponent(`name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, { headers });
+  const data = await res.json();
+  if (data.files && data.files.length > 0) {
+    _gDriveRootId = data.files[0].id;
+    return _gDriveRootId;
+  }
+  // なければ作成
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
+  });
+  const folder = await createRes.json();
+  _gDriveRootId = folder.id;
+  return _gDriveRootId;
+}
+
+async function driveEnsureCaseFolder(caseId) {
+  const headers = googleAuthHeader();
+  if (!headers) return null;
+  const c = ld(K.cases).find(x => x.id === caseId);
+  const props = ld(K.props);
+  const tenants = ld(K.tenants);
+  const prop = props.find(p => p.id === (c && c.propertyId));
+  const tenant = tenants.find(t => t.id === (c && c.tenantId));
+  const folderName = [
+    c ? (c.caseNo || '') : '',
+    prop ? (prop.name || '') : '',
+    c ? (c.room || '') : '',
+    tenant ? (tenant.name || '') : ''
+  ].filter(Boolean).join('_') || ('案件_' + caseId);
+
+  const rootId = await driveEnsureRootFolder();
+  if (!rootId) return null;
+  // 既存フォルダ検索
+  const q = encodeURIComponent(`name='${folderName}' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, { headers });
+  const data = await res.json();
+  if (data.files && data.files.length > 0) return data.files[0].id;
+  // 作成
+  const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST', headers,
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] })
+  });
+  const folder = await cr.json();
+  return folder.id;
+}
+
+// ---------- Drive: ファイルアップロード ----------
+async function driveUploadFile(file, folderId, fileName) {
+  const headers = googleAuthHeader();
+  if (!headers) return null;
+  const token = _googleToken.access_token;
+  const metadata = { name: fileName || file.name, parents: folderId ? [folderId] : [] };
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', file);
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token },
+    body: form
+  });
+  return await res.json(); // { id, name, webViewLink }
+}
+
+// ---------- Drive: 写真アップロード（既存機能に統合用） ----------
+async function driveUploadPhoto(blob, caseId, fileName) {
+  const folderId = await driveEnsureCaseFolder(caseId);
+  if (!folderId) return null;
+  const file = new File([blob], fileName, { type: blob.type });
+  return await driveUploadFile(file, folderId, fileName);
+}
+
+// ---------- Drive: ファイル一覧取得 ----------
+async function driveListCaseFiles(caseId) {
+  const headers = googleAuthHeader();
+  if (!headers) return [];
+  // caseIdからフォルダIDを取得（キャッシュ利用）
+  const folderKey = 'crm_drive_folder_' + caseId;
+  let folderId = localStorage.getItem(folderKey);
+  if (!folderId) {
+    folderId = await driveEnsureCaseFolder(caseId);
+    if (folderId) localStorage.setItem(folderKey, folderId);
+  }
+  if (!folderId) return [];
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,webViewLink,createdTime,size)&orderBy=createdTime desc`, { headers });
+  const data = await res.json();
+  return data.files || [];
+}
+
+// ---------- Drive: ファイル開封確認 ----------
+async function driveGetFileActivity(fileId) {
+  const headers = googleAuthHeader();
+  if (!headers) return [];
+  // Drive Activity API
+  const res = await fetch('https://driveactivity.googleapis.com/v2/activity:query', {
+    method: 'POST', headers,
+    body: JSON.stringify({ itemName: 'items/' + fileId, pageSize: 20 })
+  });
+  const data = await res.json();
+  return (data.activities || []).map(a => ({
+    time: a.timestamp || a.timeRange?.endTime,
+    action: Object.keys(a.primaryActionDetail || {})[0] || 'unknown',
+    actors: (a.actors || []).map(ac => ac.user?.knownUser?.personName || ac.user?.unknownUser?.displayName || '不明')
+  }));
+}
+
+// ---------- ファイルタブ ----------
+let _currentCaseId = null; // openCaseModal で設定済みのはずだが念のため
+async function loadCaseFilesTab() {
+  const caseId = window._editingCaseId;
+  if (!caseId) { $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">案件を保存してからファイルを追加できます</p>'; return; }
+  if (!_googleToken) { $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">⚠️ Google連携が必要です。設定からログインしてください。</p>'; return; }
+  $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">読み込み中...</p>';
+  const files = await driveListCaseFiles(caseId);
+  if (!files.length) {
+    $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">ファイルがありません</p>';
+    return;
+  }
+  $('case-file-list').innerHTML = files.map(f => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg);border-radius:6px;font-size:13px">
+      <span style="font-size:20px">${f.mimeType === 'application/pdf' ? '📄' : '🖼️'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
+        <div style="font-size:11px;color:var(--tm)">${f.createdTime ? new Date(f.createdTime).toLocaleString('ja-JP') : ''} ${f.size ? Math.round(f.size/1024)+'KB' : ''}</div>
+      </div>
+      <a href="${f.webViewLink}" target="_blank" class="btn bs bsm" style="text-decoration:none">🔗 開く</a>
+      <button class="btn bs bsm" onclick="checkFileActivity('${f.id}','${esc(f.name)}')">👁 開封確認</button>
+    </div>
+  `).join('');
+  // 精算書送信ボタンの表示更新
+  updateSendSettlementBtn(caseId);
+}
+
+async function checkFileActivity(fileId, fileName) {
+  showBkToast('開封履歴を取得中...');
+  const acts = await driveGetFileActivity(fileId);
+  if (!acts.length) { alert('📭 「' + fileName + '」\n\nまだ誰も開いていません'); return; }
+  const viewed = acts.filter(a => a.action === 'view' || a.action === 'edit');
+  if (!viewed.length) { alert('📭 「' + fileName + '」\n\nまだ閲覧記録がありません'); return; }
+  const lines = viewed.map(a => `${new Date(a.time).toLocaleString('ja-JP')} - ${a.actors.join(', ')}`).join('\n');
+  alert('👁 「' + fileName + '」の閲覧履歴\n\n' + lines);
+}
+
+async function uploadScanPdf() {
+  const caseId = window._editingCaseId;
+  if (!caseId) { alert('案件を保存してから添付してください'); return; }
+  if (!_googleToken) { alert('Google連携が必要です。設定からログインしてください。'); return; }
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'application/pdf,image/*';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+
+    // --- 1. Google Driveにアップロード ---
+    showBkToast('📤 Google Driveにアップロード中...');
+    const folderId = await driveEnsureCaseFolder(caseId);
+    if (!folderId) { alert('Driveフォルダの作成に失敗しました'); return; }
+    const result = await driveUploadFile(file, folderId, file.name);
+    if (!result || !result.id) { alert('アップロードに失敗しました'); return; }
+
+    // ローカルにファイル情報を保存
+    const fileRec = { id: uid(), caseId, driveId: result.id, name: result.name, link: result.webViewLink, uploadedAt: new Date().toISOString(), type: 'scan' };
+    const files = ld('crm_case_files'); files.push(fileRec); sv2k('crm_case_files', files);
+    showBkToast('✅ アップロード完了: ' + result.name);
+
+    // --- 2. Gemini AIでメールアドレスを抽出 ---
+    const cfg = ldO(CLOUD_KEY);
+    if (cfg.geminiKey) {
+      await scanPdfExtractEmail(file, caseId);
+    }
+
+    loadCaseFilesTab();
+  };
+  input.click();
+}
+
+// スキャンPDFからメールアドレスを抽出して入居者マスタに保存
+async function scanPdfExtractEmail(file, caseId) {
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.geminiKey) return;
+
+  showBkToast('🤖 AIでメールアドレスを抽出中...');
+  aiPanelOpen();
+  aiLog('📧 スキャンPDF からメール抽出開始: ' + file.name, '#fbbf24');
+
+  try {
+    // 画像に変換（1ページ目のみで十分）
+    let parts;
+    try {
+      const images = await compressPdfToImages(file);
+      const firstPage = images.slice(0, 2); // 最初の2ページ
+      const prompt = `この精算書・書類からメールアドレスを抽出してください。
+メールアドレスが複数ある場合はすべて抽出してください。
+必ず以下のJSON形式で返してください（メールアドレスがなければempty配列）：
+{"emails": ["aaa@example.com", "bbb@example.jp"]}
+JSONのみ返してください。`;
+      parts = [{ text: prompt }, ...firstPage.map(img => ({ inline_data: { mime_type: img.mimeType, data: img.b64 } }))];
+    } catch(e) {
+      const b64 = await fileToBase64(file);
+      const prompt = `この精算書・書類からメールアドレスを抽出してください。{"emails":["aaa@example.com"]} 形式のJSONのみ返してください。`;
+      parts = [{ text: prompt }, { inline_data: { mime_type: 'application/pdf', data: b64 } }];
+    }
+
+    const resData = await geminiCallWithRetry(cfg.geminiKey, parts, 0);
+    const text = resData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    aiLog('📡 抽出応答: ' + text.slice(0, 100), '#a78bfa');
+
+    let extracted = [];
+    try {
+      const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = mdMatch ? mdMatch[1] : (text.match(/\{[\s\S]*\}/) || ['{}'])[0];
+      const data = JSON.parse(jsonStr);
+      extracted = data.emails || [];
+    } catch(e) {
+      // テキストから直接抽出（正規表現フォールバック）
+      const matches = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g);
+      extracted = matches || [];
+    }
+
+    if (!extracted.length) {
+      aiLog('📭 メールアドレスが見つかりませんでした', '#fbbf24');
+      return;
+    }
+
+    aiLog(`✅ ${extracted.length}件のメールアドレスを抽出: ${extracted.join(', ')}`, '#4ade80');
+
+    // 案件に紐づく入居者を取得
+    const c = ld(K.cases).find(x => x.id === caseId);
+    const tenants = ld(K.tenants);
+    const tenant = c && c.tenantId ? tenants.find(t => t.id === c.tenantId) : null;
+
+    if (tenant) {
+      const alreadyHas = tenant.email && tenant.email.trim();
+      if (alreadyHas) {
+        aiLog(`ℹ️ 入居者「${tenant.name}」には既にメール登録済み: ${tenant.email}`, '#fbbf24');
+        // 抽出したメールが既存と違う場合は確認
+        if (!extracted.includes(tenant.email)) {
+          const useNew = confirm(`入居者「${tenant.name}」の現在のメール:\n${tenant.email}\n\n精算書から抽出したメール:\n${extracted[0]}\n\n抽出したメールアドレスに更新しますか？`);
+          if (!useNew) return;
+          const idx = tenants.findIndex(t => t.id === tenant.id);
+          tenants[idx] = { ...tenants[idx], email: extracted[0] };
+          sv(K.tenants, tenants);
+          aiLog(`✅ 入居者「${tenant.name}」のメールを更新: ${extracted[0]}`, '#4ade80');
+          showBkToast(`✅ メールアドレスを更新しました: ${extracted[0]}`);
+        }
+      } else {
+        // メール未登録 → 自動保存（確認あり）
+        const doSave = confirm(`精算書から退去者のメールアドレスを検出しました。\n\n入居者「${tenant.name}」に登録しますか？\n\nメールアドレス: ${extracted[0]}`);
+        if (doSave) {
+          const idx = tenants.findIndex(t => t.id === tenant.id);
+          tenants[idx] = { ...tenants[idx], email: extracted[0] };
+          sv(K.tenants, tenants);
+          aiLog(`✅ 入居者「${tenant.name}」にメールを登録: ${extracted[0]}`, '#4ade80');
+          showBkToast(`✅ メールアドレスを登録しました: ${extracted[0]}`);
+          // 精算書送信ボタンを表示
+          const btn = $('send-settlement-btn');
+          if (btn) btn.style.display = '';
+        }
+      }
+    } else {
+      // 入居者が未設定の場合はトースト通知のみ
+      showBkToast(`📧 抽出したメール: ${extracted[0]}（入居者マスタに登録してください）`);
+    }
+
+    // 精算書送信ボタンを表示（メールがあれば）
+    updateSendSettlementBtn(caseId);
+
+  } catch(e) {
+    aiLog('⚠️ メール抽出エラー: ' + e.message, '#fbbf24');
+  }
+}
+
+// 精算書送信ボタンの表示制御
+function updateSendSettlementBtn(caseId) {
+  const btn = $('send-settlement-btn');
+  if (!btn) return;
+  const c = caseId ? ld(K.cases).find(x => x.id === caseId) : null;
+  const tenant = c && c.tenantId ? ld(K.tenants).find(t => t.id === c.tenantId) : null;
+  const hasScanFile = ld('crm_case_files').some(f => f.caseId === caseId && f.type === 'scan');
+  btn.style.display = (tenant && tenant.email && hasScanFile) ? '' : 'none';
+}
+
+// 精算書を退去者にメール送信
+function openSendSettlementMail() {
+  const caseId = window._editingCaseId;
+  if (!caseId) return;
+  const c = ld(K.cases).find(x => x.id === caseId);
+  const props = ld(K.props);
+  const tenants = ld(K.tenants);
+  const prop = c ? props.find(p => p.id === c.propertyId) : null;
+  const tenant = c ? tenants.find(t => t.id === c.tenantId) : null;
+
+  if (!tenant || !tenant.email) {
+    alert('入居者のメールアドレスが登録されていません。\n先にスキャンPDFをアップロードするか、入居者マスタにメールを登録してください。');
+    return;
+  }
+
+  // 最新のスキャンファイルを取得
+  const scanFiles = ld('crm_case_files').filter(f => f.caseId === caseId && f.type === 'scan');
+  const latestScan = scanFiles.sort((a,b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))[0];
+
+  const propName = prop ? (prop.name || '') : '';
+  const room = c ? (c.room || '') : '';
+  const cfg = ldO(K.settings);
+  const ownerName = cfg.owner || cfg.company || '';
+  const moveout = c ? (c.moveoutDate || '') : '';
+
+  const subject = `【退去精算書】${propName}${room ? ' ' + room + '号室' : ''} ご精算のご案内`;
+  const body = `${tenant.name} 様
+
+お世話になっております。
+${ownerName}でございます。
+
+このたびは退去の手続きにご協力いただき、ありがとうございました。
+
+下記のとおり精算書をお送りいたします。
+内容をご確認のうえ、ご不明な点がございましたらご連絡ください。
+
+【物件】${propName}${room ? '　' + room + '号室' : ''}
+【解約日】${moveout}${latestScan ? '\n\n精算書は添付ファイルをご確認ください。' : ''}
+
+どうぞよろしくお願いいたします。
+
+${ownerName}`;
+
+  // メール作成モーダルを開く（スキャンファイルのDriveリンクを本文に追加）
+  openMailCompose({
+    to: tenant.email,
+    subject,
+    body: body + (latestScan ? '\n\n【精算書ファイル】\n' + (latestScan.link || '') : '')
+  });
+
+  // ファイルも添付できるよう案内
+  if (latestScan) {
+    setTimeout(() => {
+      showBkToast('💡 精算書PDFを添付する場合は「ファイル選択」で選んでください');
+    }, 500);
+  }
+}
+
+function openDriveFolderForCase() {
+  const caseId = window._editingCaseId;
+  if (!caseId || !_googleToken) { alert('Google連携が必要です'); return; }
+  driveEnsureCaseFolder(caseId).then(folderId => {
+    if (folderId) window.open('https://drive.google.com/drive/folders/' + folderId, '_blank');
+  });
+}
+
+// ---------- Gmail: メール送信 ----------
+async function gmailSend(to, cc, subject, body, attachFile, saveToDrive, caseId) {
+  const headers = googleAuthHeader();
+  if (!headers) return false;
+  const from = _googleToken.email;
+  // MIMEメッセージ構築
+  let mimeMsg;
+  if (attachFile) {
+    // multipart/mixed
+    const boundary = 'boundary_' + Date.now();
+    const b64body = btoa(unescape(encodeURIComponent(body)));
+    const fileData = await fileToBase64Raw(attachFile);
+    mimeMsg = [
+      'MIME-Version: 1.0',
+      `From: ${from}`, `To: ${to}`, cc ? `Cc: ${cc}` : '',
+      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`, '',
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64', '',
+      b64body, '',
+      `--${boundary}`,
+      `Content-Type: ${attachFile.type || 'application/octet-stream'}; name="${attachFile.name}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${attachFile.name}"`, '',
+      fileData, '',
+      `--${boundary}--`
+    ].filter(l => l !== null).join('\r\n');
+  } else {
+    const b64body = btoa(unescape(encodeURIComponent(body)));
+    mimeMsg = [
+      'MIME-Version: 1.0',
+      `From: ${from}`, `To: ${to}`, cc ? `Cc: ${cc}` : '',
+      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64', '',
+      b64body
+    ].filter(l => l !== null).join('\r\n');
+  }
+  const raw = btoa(unescape(encodeURIComponent(mimeMsg))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + _googleToken.access_token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw })
+  });
+  const result = await res.json();
+  if (result.id) {
+    // Drive保存
+    if (saveToDrive && attachFile && caseId) {
+      const folderId = await driveEnsureCaseFolder(caseId);
+      if (folderId) await driveUploadFile(attachFile, folderId, attachFile.name);
+    }
+    // メール履歴保存
+    const mailLog = {
+      id: uid(), caseId: caseId || '', direction: 'sent',
+      to, cc: cc || '', subject, body,
+      attachName: attachFile ? attachFile.name : '',
+      sentAt: new Date().toISOString(), gmailId: result.id
+    };
+    const logs = ld('crm_mail_logs'); logs.push(mailLog); sv2k('crm_mail_logs', logs);
+    return true;
+  } else {
+    console.error('Gmail send error:', result);
+    return false;
+  }
+}
+
+async function fileToBase64Raw(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const b64 = e.target.result.split(',')[1];
+      resolve(b64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ---------- Gmail: 受信メール取得（案件に関連するもの） ----------
+async function gmailFetchForCase() {
+  const caseId = window._editingCaseId;
+  if (!caseId) { alert('案件を保存してから実行してください'); return; }
+  if (!_googleToken) { alert('Google連携が必要です'); return; }
+  const c = ld(K.cases).find(x => x.id === caseId);
+  const tenants = ld(K.tenants);
+  const mgmt = ld(K.mgmt);
+  const tenant = tenants.find(t => t.id === (c && c.tenantId));
+  const mgmtco = mgmt.find(m => m.id === (c && c.mgmtId));
+  // 検索クエリ: 管理会社メールまたは入居者メール
+  const emails = [tenant && tenant.email, mgmtco && mgmtco.email].filter(Boolean);
+  if (!emails.length) { alert('管理会社または入居者のメールアドレスが登録されていません'); return; }
+  showBkToast('📬 Gmailから取り込み中...');
+  const q = emails.map(e => `from:${e} OR to:${e}`).join(' OR ');
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=20`, {
+    headers: { Authorization: 'Bearer ' + _googleToken.access_token }
+  });
+  const data = await res.json();
+  const messages = data.messages || [];
+  if (!messages.length) { showBkToast('📭 関連メールが見つかりませんでした'); loadCaseMailTab(); return; }
+  // 詳細取得
+  const existing = ld('crm_mail_logs').map(m => m.gmailId).filter(Boolean);
+  let imported = 0;
+  for (const msg of messages.slice(0, 10)) {
+    if (existing.includes(msg.id)) continue;
+    const mRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
+      headers: { Authorization: 'Bearer ' + _googleToken.access_token }
+    });
+    const mData = await mRes.json();
+    const hdrs = (mData.payload && mData.payload.headers) || [];
+    const getHdr = name => (hdrs.find(h => h.name.toLowerCase() === name) || {}).value || '';
+    const subject = getHdr('subject');
+    const from = getHdr('from');
+    const to = getHdr('to');
+    const date = getHdr('date');
+    const internalDate = mData.internalDate ? new Date(parseInt(mData.internalDate)).toISOString() : new Date(date).toISOString();
+    // 本文取得
+    let body = '';
+    function extractBody(payload) {
+      if (!payload) return;
+      if (payload.mimeType === 'text/plain' && payload.body && payload.body.data) {
+        body = decodeURIComponent(escape(atob(payload.body.data.replace(/-/g,'+').replace(/_/g,'/'))));
+      } else if (payload.parts) { payload.parts.forEach(extractBody); }
+    }
+    extractBody(mData.payload);
+    const direction = from.includes(_googleToken.email) ? 'sent' : 'received';
+    const mailLog = { id: uid(), caseId, direction, to, from, subject, body: body.slice(0, 2000), sentAt: internalDate, gmailId: msg.id };
+    const logs = ld('crm_mail_logs'); logs.push(mailLog); sv2k('crm_mail_logs', logs);
+    imported++;
+  }
+  showBkToast(`✅ ${imported}件のメールを取り込みました`);
+  loadCaseMailTab();
+}
+
+// ---------- メールタブ描画 ----------
+function loadCaseMailTab() {
+  const caseId = window._editingCaseId;
+  const allLogs = ld('crm_mail_logs');
+  const logs = allLogs.filter(m => m.caseId === caseId).sort((a,b) => new Date(b.sentAt) - new Date(a.sentAt));
+  if (!logs.length) {
+    $('case-mail-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">メール履歴がありません</p>';
+    return;
+  }
+  $('case-mail-list').innerHTML = logs.map(m => {
+    const dt = m.sentAt ? new Date(m.sentAt).toLocaleString('ja-JP') : '';
+    const dirIcon = m.direction === 'sent' ? '📤' : '📨';
+    const dirColor = m.direction === 'sent' ? 'var(--pr)' : 'var(--su)';
+    return `<div style="padding:10px 12px;background:var(--bg);border-radius:6px;cursor:pointer;border-left:3px solid ${dirColor}" onclick="openMailDetail('${m.id}')">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span>${dirIcon}</span>
+        <span style="font-weight:600;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.subject || '(件名なし)')}</span>
+        <span style="font-size:11px;color:var(--tm);white-space:nowrap">${dt}</span>
+      </div>
+      <div style="font-size:12px;color:var(--tm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.direction === 'sent' ? 'To: ' + esc(m.to) : 'From: ' + esc(m.from || m.to)}</div>
+    </div>`;
+  }).join('');
+}
+
+function openMailDetail(mailId) {
+  const m = ld('crm_mail_logs').find(x => x.id === mailId);
+  if (!m) return;
+  $('mdm-subject').textContent = m.subject || '(件名なし)';
+  const dt = m.sentAt ? new Date(m.sentAt).toLocaleString('ja-JP') : '';
+  $('mdm-meta').innerHTML = `${m.direction === 'sent' ? '📤 送信' : '📨 受信'} &nbsp; ${dt} &nbsp; ${m.direction === 'sent' ? 'To: ' + esc(m.to) : 'From: ' + esc(m.from || '')}`;
+  $('mdm-body').textContent = m.body || '';
+  $('mdm-attach').innerHTML = m.attachName ? `<span style="font-size:12px">📎 ${esc(m.attachName)}</span>` : '';
+  window._viewingMailId = mailId;
+  openModal('mail-detail-modal');
+}
+
+function openMailReply() {
+  const m = ld('crm_mail_logs').find(x => x.id === window._viewingMailId);
+  if (!m) return;
+  closeModal('mail-detail-modal');
+  openMailCompose({
+    to: m.direction === 'sent' ? m.to : (m.from || m.to),
+    subject: m.subject && !m.subject.startsWith('Re:') ? 'Re: ' + m.subject : (m.subject || ''),
+    body: '\n\n--- 元のメール ---\n' + (m.body || '')
+  });
+}
+
+// ---------- メール作成 ----------
+function openMailCompose(prefill) {
+  prefill = prefill || {};
+  // テンプレートプルダウンを更新
+  const templates = ld('crm_mail_templates');
+  const sel = $('mc-template');
+  sel.innerHTML = '<option value="">— テンプレートを選択 —</option>' + templates.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  // 案件情報から宛先を自動入力
+  const caseId = window._editingCaseId;
+  const c = caseId ? ld(K.cases).find(x => x.id === caseId) : null;
+  const mgmt = c ? ld(K.mgmt).find(m => m.id === c.mgmtId) : null;
+  sv2('mc-to', prefill.to || (mgmt && mgmt.email) || '');
+  sv2('mc-cc', prefill.cc || '');
+  sv2('mc-subject', prefill.subject || '');
+  sv2('mc-body', prefill.body || '');
+  sv2('mc-attach-name', '未選択'); $('mc-attach-clear').style.display = 'none';
+  $('mc-attach-file').value = '';
+  window._mcAttachFile = null;
+  $('mc-drive-upload-row').style.display = 'none';
+  openModal('mail-compose-modal');
+}
+
+function applyMailTemplate() {
+  const tid = gv('mc-template'); if (!tid) return;
+  const t = ld('crm_mail_templates').find(x => x.id === tid); if (!t) return;
+  // 変数置換
+  const caseId = window._editingCaseId;
+  const c = caseId ? ld(K.cases).find(x => x.id === caseId) : null;
+  const props = ld(K.props); const tenants = ld(K.tenants); const mgmt = ld(K.mgmt);
+  const prop = c ? props.find(p => p.id === c.propertyId) : null;
+  const tenant = c ? tenants.find(t2 => t2.id === c.tenantId) : null;
+  const mgmtco = c ? mgmt.find(m => m.id === c.mgmtId) : null;
+  const cfg = ldO('crm_settings');
+  const vars = {
+    '{{物件名}}': prop ? (prop.name || '') : '',
+    '{{部屋番号}}': c ? (c.room || '') : '',
+    '{{入居者名}}': tenant ? (tenant.name || '') : '',
+    '{{管理会社名}}': mgmtco ? (mgmtco.name || '') : '',
+    '{{解約日}}': c ? (c.moveoutDate || '') : '',
+    '{{担当者名}}': cfg.owner || ''
+  };
+  let subj = t.subject || '';
+  let body = t.body || '';
+  Object.entries(vars).forEach(([k,v]) => { subj = subj.split(k).join(v); body = body.split(k).join(v); });
+  sv2('mc-subject', subj); sv2('mc-body', body);
+  // 宛先設定
+  if (t.toType === 'mgmt' && mgmtco && mgmtco.email) sv2('mc-to', mgmtco.email);
+  else if (t.toType === 'tenant' && tenant && tenant.email) sv2('mc-to', tenant.email);
+}
+
+function mcAttachSelected(input) {
+  const file = input.files[0]; if (!file) return;
+  window._mcAttachFile = file;
+  $('mc-attach-name').textContent = file.name + ' (' + Math.round(file.size/1024) + 'KB)';
+  $('mc-attach-clear').style.display = '';
+  $('mc-drive-upload-row').style.display = '';
+}
+function mcAttachClear() {
+  window._mcAttachFile = null;
+  $('mc-attach-file').value = '';
+  $('mc-attach-name').textContent = '未選択';
+  $('mc-attach-clear').style.display = 'none';
+  $('mc-drive-upload-row').style.display = 'none';
+}
+
+async function mcSend() {
+  const to = gv('mc-to').trim(); const subject = gv('mc-subject').trim(); const body = gv('mc-body').trim();
+  if (!to) { alert('宛先を入力してください'); return; }
+  if (!subject) { alert('件名を入力してください'); return; }
+  if (!_googleToken) { alert('Google連携が必要です。設定からログインしてください。'); return; }
+  const saveDrive = $('mc-save-drive') && $('mc-save-drive').checked;
+  const caseId = window._editingCaseId;
+  showBkToast('📤 送信中...');
+  const ok = await gmailSend(to, gv('mc-cc'), subject, body, window._mcAttachFile || null, saveDrive, caseId);
+  if (ok) {
+    showBkToast('✅ 送信しました');
+    closeModal('mail-compose-modal');
+    if ($('ctab-mail') && $('ctab-mail').style.display !== 'none') loadCaseMailTab();
+  } else {
+    alert('送信に失敗しました。Google連携を確認してください。');
+  }
+}
+
+async function mcSaveDraft() {
+  const to = gv('mc-to').trim(); const subject = gv('mc-subject').trim(); const body = gv('mc-body').trim();
+  const caseId = window._editingCaseId;
+  const mailLog = { id: uid(), caseId: caseId || '', direction: 'draft', to, cc: gv('mc-cc'), subject, body, attachName: window._mcAttachFile ? window._mcAttachFile.name : '', sentAt: new Date().toISOString() };
+  const logs = ld('crm_mail_logs'); logs.push(mailLog); sv2k('crm_mail_logs', logs);
+  showBkToast('💾 下書きを保存しました');
+  closeModal('mail-compose-modal');
+  if ($('ctab-mail') && $('ctab-mail').style.display !== 'none') loadCaseMailTab();
+}
+
+// ---------- メールテンプレート ----------
+function renderMailTemplateList() {
+  const el = $('mail-template-list'); if (!el) return;
+  const templates = ld('crm_mail_templates');
+  if (!templates.length) { el.innerHTML = '<p style="color:var(--tm);font-size:13px">テンプレートがありません</p>'; return; }
+  el.innerHTML = templates.map(t => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:6px;margin-bottom:6px">
+      <span style="flex:1;font-size:13px;font-weight:600">${esc(t.name)}</span>
+      <span style="font-size:11px;color:var(--tm)">${t.toType === 'mgmt' ? '管理会社宛' : t.toType === 'tenant' ? '入居者宛' : '手動'}</span>
+      <button class="btn bs bsm" onclick="openMailTemplateEdit('${t.id}')">✏️ 編集</button>
+    </div>
+  `).join('');
+}
+function openMailTemplateEdit(id) {
+  window._editingTemplateId = id;
+  const t = id ? ld('crm_mail_templates').find(x => x.id === id) : null;
+  $('mt-modal-title').textContent = t ? '📧 テンプレート編集' : '📧 テンプレート作成';
+  sv2('mt-name', t ? t.name : '');
+  sv2('mt-to-type', t ? t.toType : 'mgmt');
+  sv2('mt-subject', t ? t.subject : '');
+  sv2('mt-body', t ? t.body : '');
+  $('mt-delete-btn').style.display = t ? '' : 'none';
+  openModal('mail-template-modal');
+}
+function saveMailTemplate() {
+  const name = gv('mt-name').trim(); if (!name) { alert('テンプレート名を入力してください'); return; }
+  const templates = ld('crm_mail_templates');
+  const id = window._editingTemplateId;
+  if (id) {
+    const i = templates.findIndex(x => x.id === id);
+    if (i >= 0) templates[i] = { ...templates[i], name, toType: gv('mt-to-type'), subject: gv('mt-subject'), body: gv('mt-body') };
+  } else {
+    templates.push({ id: uid(), name, toType: gv('mt-to-type'), subject: gv('mt-subject'), body: gv('mt-body'), createdAt: new Date().toISOString() });
+  }
+  sv2k('crm_mail_templates', templates);
+  closeModal('mail-template-modal');
+  renderMailTemplateList();
+  showBkToast('✅ テンプレートを保存しました');
+}
+function deleteMailTemplate() {
+  const id = window._editingTemplateId; if (!id) return;
+  if (!confirm('このテンプレートを削除しますか？')) return;
+  sv2k('crm_mail_templates', ld('crm_mail_templates').filter(x => x.id !== id));
+  closeModal('mail-template-modal');
+  renderMailTemplateList();
+  showBkToast('🗑️ テンプレートを削除しました');
+}
+
+// ld/sv2k のキー対応
+function sv2k(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+// ============================================================
+// 材料マスタ
+// ============================================================
+const MAT_KEY = 'crm_materials';
+let _editingMatId = null;
+let _matImgData = null; // base64
+
+function renderMaterials() {
+  const q = ($('mat-q') ? $('mat-q').value : '').trim().toLowerCase();
+  const catF = $('mat-cat-filter') ? $('mat-cat-filter').value : '';
+  const shopF = $('mat-shop-filter') ? $('mat-shop-filter').value : '';
+  let list = ld(MAT_KEY);
+  if (q) list = list.filter(m => (m.name||'').toLowerCase().includes(q) || (m.maker||'').toLowerCase().includes(q) || (m.memo||'').toLowerCase().includes(q));
+  if (catF) list = list.filter(m => m.cat === catF);
+  if (shopF) list = list.filter(m => m.shopType === shopF);
+  const grid = $('materials-grid');
+  const empty = $('materials-empty');
+  if (!grid) return;
+  if (!list.length) { grid.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  grid.innerHTML = list.map(m => {
+    const imgHtml = m.imgData
+      ? `<img src="${m.imgData}" style="width:100%;height:140px;object-fit:contain;background:#f9f9f9;border-radius:6px 6px 0 0">`
+      : `<div style="width:100%;height:80px;display:flex;align-items:center;justify-content:center;font-size:32px;background:var(--bg);border-radius:6px 6px 0 0">🛒</div>`;
+    const shopBadge = m.shopType === 'ec'
+      ? `<span style="background:#dbeafe;color:#1e40af;font-size:10px;padding:2px 6px;border-radius:10px">EC</span>`
+      : `<span style="background:#dcfce7;color:#166534;font-size:10px;padding:2px 6px;border-radius:10px">店舗</span>`;
+    const urlHtml = m.url ? `<a href="${esc(m.url)}" target="_blank" style="font-size:11px;color:var(--pr)">🔗 商品ページ</a>` : '';
+    return `<div style="background:var(--wh);border:1px solid var(--bd);border-radius:8px;overflow:hidden;cursor:pointer" onclick="openMaterialModal('${m.id}')">
+      ${imgHtml}
+      <div style="padding:10px">
+        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
+          <span style="font-weight:700;font-size:13px;flex:1;line-height:1.4">${esc(m.name)}</span>
+          ${shopBadge}
+        </div>
+        ${m.cat ? `<div style="font-size:11px;color:var(--tm);margin-bottom:4px">${esc(m.cat)}</div>` : ''}
+        ${m.maker ? `<div style="font-size:11px;color:var(--tm)">${esc(m.maker)}${m.spec?' / '+esc(m.spec):''}</div>` : ''}
+        <div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-weight:700;color:var(--da);font-size:14px">${m.cost ? '¥'+Number(m.cost).toLocaleString() : '—'}<span style="font-size:10px;font-weight:400;color:var(--tm)"> / ${esc(m.unit||'個')}</span></span>
+          <span style="font-size:11px;color:var(--tm)">${esc(m.shopName||m.storeName||'')}</span>
+        </div>
+        ${urlHtml ? `<div style="margin-top:4px">${urlHtml}</div>` : ''}
+        ${m.memo ? `<div style="font-size:11px;color:var(--tm);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.memo)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openMaterialModal(id) {
+  _editingMatId = id || null;
+  _matImgData = null;
+  const m = id ? ld(MAT_KEY).find(x => x.id === id) : null;
+  $('mat-modal-title').textContent = m ? '🛒 材料編集' : '🛒 材料追加';
+  sv2('mat-name', m ? m.name : '');
+  sv2('mat-cat', m ? m.cat : '接着剤・コーキング');
+  sv2('mat-shop-type', m ? (m.shopType || 'ec') : 'ec');
+  sv2('mat-shop-name', m ? (m.shopName || '') : '');
+  sv2('mat-url', m ? (m.url || '') : '');
+  sv2('mat-store-name', m ? (m.storeName || '') : '');
+  sv2('mat-maker', m ? (m.maker || '') : '');
+  sv2('mat-spec', m ? (m.spec || '') : '');
+  sv2('mat-cost', m ? (m.cost || '') : '');
+  sv2('mat-unit', m ? (m.unit || '') : '');
+  sv2('mat-memo', m ? (m.memo || '') : '');
+  sv2('mat-img-url-inp', '');
+  // 画像
+  const prev = $('mat-img-preview');
+  const del = $('mat-img-del');
+  if (m && m.imgData) {
+    prev.src = m.imgData; prev.style.display = ''; _matImgData = m.imgData;
+    if (del) del.style.display = '';
+  } else {
+    prev.src = ''; prev.style.display = 'none';
+    if (del) del.style.display = 'none';
+  }
+  $('mat-del-btn').style.display = id ? '' : 'none';
+  matShopTypeChange();
+  openModal('material-modal');
+}
+
+function matShopTypeChange() {
+  const t = gv('mat-shop-type');
+  $('mat-ec-row').style.display = t === 'ec' ? '' : 'none';
+  $('mat-url-row').style.display = t === 'ec' ? '' : 'none';
+  $('mat-store-row').style.display = t === 'store' ? '' : 'none';
+}
+
+function matImgSelected(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _matImgData = e.target.result;
+    $('mat-img-preview').src = _matImgData;
+    $('mat-img-preview').style.display = '';
+    $('mat-img-del').style.display = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+function matImgFromUrl() {
+  const url = gv('mat-img-url-inp').trim();
+  if (!url) { alert('URLを入力してください'); return; }
+  // プロキシなしで直接img srcに設定（CORSがある場合はフォールバック）
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    try {
+      _matImgData = canvas.toDataURL('image/jpeg', 0.8);
+    } catch(e) {
+      // CORS制限の場合はURLのまま保存
+      _matImgData = url;
+    }
+    $('mat-img-preview').src = _matImgData;
+    $('mat-img-preview').style.display = '';
+    $('mat-img-del').style.display = '';
+  };
+  img.onerror = () => {
+    // URLのまま表示
+    _matImgData = url;
+    $('mat-img-preview').src = url;
+    $('mat-img-preview').style.display = '';
+    $('mat-img-del').style.display = '';
+  };
+  img.src = url;
+}
+
+function matImgClear() {
+  _matImgData = null;
+  $('mat-img-preview').src = ''; $('mat-img-preview').style.display = 'none';
+  $('mat-img-del').style.display = 'none';
+  $('mat-img-file').value = '';
+}
+
+function saveMaterial() {
+  const name = gv('mat-name').trim();
+  if (!name) { alert('商品名を入力してください'); return; }
+  const list = ld(MAT_KEY);
+  const shopType = gv('mat-shop-type');
+  const item = {
+    id: _editingMatId || uid(),
+    name, cat: gv('mat-cat'), shopType,
+    shopName: shopType === 'ec' ? gv('mat-shop-name') : '',
+    storeName: shopType === 'store' ? gv('mat-store-name') : '',
+    url: gv('mat-url'),
+    maker: gv('mat-maker'), spec: gv('mat-spec'),
+    cost: gv('mat-cost'), unit: gv('mat-unit'),
+    memo: gv('mat-memo'), imgData: _matImgData || '',
+    updatedAt: new Date().toISOString()
+  };
+  if (_editingMatId) {
+    const i = list.findIndex(x => x.id === _editingMatId);
+    if (i >= 0) list[i] = { ...list[i], ...item };
+    else list.push(item);
+  } else {
+    item.createdAt = item.updatedAt;
+    list.push(item);
+  }
+  sv2k(MAT_KEY, list);
+  closeModal('material-modal');
+  renderMaterials();
+  showBkToast('✅ 材料を保存しました');
+}
+
+function deleteMaterial() {
+  if (!_editingMatId) return;
+  if (!confirm('この材料を削除しますか？')) return;
+  sv2k(MAT_KEY, ld(MAT_KEY).filter(x => x.id !== _editingMatId));
+  closeModal('material-modal');
+  renderMaterials();
+  showBkToast('🗑️ 材料を削除しました');
+}
+
+function openMaterialImportFromEc() {
+  alert('EC商品URLを材料追加モーダルの「商品URL」欄に貼り付け、「URLから取得」ボタンで画像を取り込めます。');
+  openMaterialModal(null);
+}
+
+// ============================================================
+// 施工事例
+// ============================================================
+const CS_KEY = 'crm_casestudies';
+let _editingCsId = null;
+let _csBefore = []; // {dataUrl, name}
+let _csAfter  = [];
+let _csSelectedMats = []; // material ids
+
+function renderCaseStudies() {
+  const q = ($('cs-q') ? $('cs-q').value : '').trim().toLowerCase();
+  const typeF = $('cs-type-filter') ? $('cs-type-filter').value : '';
+  let list = ld(CS_KEY);
+  if (q) list = list.filter(c => (c.title||'').toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q) || (c.type||'').toLowerCase().includes(q));
+  if (typeF) list = list.filter(c => c.type === typeF);
+  list = list.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+  const grid = $('casestudies-grid');
+  const empty = $('casestudies-empty');
+  if (!grid) return;
+  if (!list.length) { grid.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+  const materials = ld(MAT_KEY);
+  grid.innerHTML = list.map(cs => {
+    const beforeImg = cs.beforePhotos && cs.beforePhotos[0] ? cs.beforePhotos[0] : '';
+    const afterImg  = cs.afterPhotos  && cs.afterPhotos[0]  ? cs.afterPhotos[0]  : '';
+    const mats = (cs.materialIds || []).map(mid => materials.find(m => m.id === mid)).filter(Boolean);
+    const caseLabel = cs.caseId ? (() => { const c = ld(K.cases).find(x => x.id === cs.caseId); return c ? (c.caseNo||'') : ''; })() : '';
+    return `<div style="background:var(--wh);border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+      <!-- ビフォーアフター -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;height:140px">
+        <div style="position:relative;overflow:hidden;border-right:2px solid var(--wh)">
+          ${beforeImg ? `<img src="${beforeImg}" style="width:100%;height:100%;object-fit:cover">` : `<div style="height:100%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:24px">📸</div>`}
+          <span style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px">BEFORE</span>
+        </div>
+        <div style="position:relative;overflow:hidden">
+          ${afterImg ? `<img src="${afterImg}" style="width:100%;height:100%;object-fit:cover">` : `<div style="height:100%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:24px">📸</div>`}
+          <span style="position:absolute;top:4px;left:4px;background:rgba(22,163,74,.9);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px">AFTER</span>
+        </div>
+      </div>
+      <div style="padding:12px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span style="background:var(--prl);color:var(--pr);font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700">${esc(cs.type||'')}</span>
+          ${caseLabel ? `<span style="font-size:11px;color:var(--tm)">案件: ${esc(caseLabel)}</span>` : ''}
+        </div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cs.title||'')}</div>
+        ${cs.desc ? `<div style="font-size:12px;color:var(--tm);margin-bottom:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(cs.desc)}</div>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          ${cs.cost ? `<span style="font-weight:700;color:var(--da)">¥${Number(cs.cost).toLocaleString()}</span>` : '<span></span>'}
+          ${cs.date ? `<span style="font-size:11px;color:var(--tm)">${cs.date}</span>` : ''}
+        </div>
+        ${mats.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${mats.map(m=>`<span style="font-size:10px;background:var(--bg);border:1px solid var(--bd);padding:2px 6px;border-radius:4px">${esc(m.name)}</span>`).join('')}</div>` : ''}
+        <button class="btn bs bsm" onclick="openCaseStudyModal('${cs.id}')" style="width:100%;margin-top:4px">✏️ 編集</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openCaseStudyModal(id) {
+  _editingCsId = id || null;
+  _csBefore = []; _csAfter = []; _csSelectedMats = [];
+  const cs = id ? ld(CS_KEY).find(x => x.id === id) : null;
+  $('cs-modal-title').textContent = cs ? '🔨 施工事例編集' : '🔨 施工事例追加';
+  sv2('cs-type', cs ? cs.type : '壁・クロス');
+  sv2('cs-title', cs ? cs.title : '');
+  sv2('cs-desc', cs ? cs.desc : '');
+  sv2('cs-cost', cs ? cs.cost : '');
+  sv2('cs-time', cs ? cs.time : '');
+  sv2('cs-date', cs ? cs.date : '');
+  sv2('cs-memo', cs ? cs.memo : '');
+
+  // 案件プルダウン
+  const cSel = $('cs-case-id');
+  const cases = ld(K.cases);
+  const props = ld(K.props);
+  cSel.innerHTML = '<option value="">— なし —</option>' + cases.map(c => {
+    const prop = props.find(p => p.id === c.propertyId);
+    return `<option value="${c.id}"${cs && cs.caseId === c.id ? ' selected' : ''}>${c.caseNo||''} ${prop ? prop.name : ''} ${c.room||''}</option>`;
+  }).join('');
+
+  // ビフォーアフター復元
+  if (cs) {
+    _csBefore = (cs.beforePhotos || []).map(d => ({ dataUrl: d }));
+    _csAfter  = (cs.afterPhotos  || []).map(d => ({ dataUrl: d }));
+    _csSelectedMats = cs.materialIds || [];
+  }
+  csRenderThumbs('before'); csRenderThumbs('after');
+
+  // 材料選択UI
+  csRenderMaterialsSel();
+
+  $('cs-del-btn').style.display = id ? '' : 'none';
+  openModal('casestudy-modal');
+}
+
+function csPhotoSelected(input, side) {
+  const files = Array.from(input.files);
+  const arr = side === 'before' ? _csBefore : _csAfter;
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      arr.push({ dataUrl: e.target.result, name: file.name });
+      loaded++;
+      if (loaded === files.length) csRenderThumbs(side);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function csRenderThumbs(side) {
+  const arr = side === 'before' ? _csBefore : _csAfter;
+  const el = $(side === 'before' ? 'cs-before-thumbs' : 'cs-after-thumbs');
+  if (!el) return;
+  el.innerHTML = arr.map((p, i) => `
+    <div style="position:relative;display:inline-block">
+      <img src="${p.dataUrl}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--bd)">
+      <button onclick="csRemovePhoto('${side}',${i})" style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:var(--da);color:#fff;border:none;border-radius:50%;cursor:pointer;font-size:11px;line-height:18px;text-align:center;padding:0">✕</button>
+    </div>
+  `).join('');
+}
+
+function csRemovePhoto(side, idx) {
+  if (side === 'before') _csBefore.splice(idx, 1);
+  else _csAfter.splice(idx, 1);
+  csRenderThumbs(side);
+}
+
+function csRenderMaterialsSel() {
+  const el = $('cs-materials-sel');
+  const sel = $('cs-selected-materials');
+  if (!el) return;
+  const mats = ld(MAT_KEY);
+  if (!mats.length) {
+    el.innerHTML = '<p id="cs-materials-empty" style="font-size:12px;color:var(--tm);margin:0">材料マスタが未登録です。先に材料マスタを登録してください。</p>';
+    if (sel) sel.innerHTML = '';
+    return;
+  }
+  el.innerHTML = mats.map(m => {
+    const checked = _csSelectedMats.includes(m.id);
+    return `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 6px;background:${checked?'var(--prl)':'transparent'};border-radius:4px;border:1px solid ${checked?'var(--pr)':'transparent'}">
+      <input type="checkbox" value="${m.id}" ${checked?'checked':''} onchange="csToggleMat('${m.id}',this.checked)">
+      ${esc(m.name)}${m.cost?' ¥'+Number(m.cost).toLocaleString():''}
+    </label>`;
+  }).join('');
+  csRenderSelectedMats();
+}
+
+function csToggleMat(id, checked) {
+  if (checked) { if (!_csSelectedMats.includes(id)) _csSelectedMats.push(id); }
+  else { _csSelectedMats = _csSelectedMats.filter(x => x !== id); }
+  csRenderMaterialsSel();
+}
+
+function csRenderSelectedMats() {
+  const el = $('cs-selected-materials');
+  if (!el) return;
+  const mats = ld(MAT_KEY);
+  const selected = _csSelectedMats.map(id => mats.find(m => m.id === id)).filter(Boolean);
+  if (!selected.length) { el.innerHTML = ''; return; }
+  const total = selected.reduce((s, m) => s + Number(m.cost || 0), 0);
+  el.innerHTML = `<div style="font-size:12px;color:var(--tm)">選択中: ${selected.map(m=>esc(m.name)).join('、')} （合計原価: ¥${total.toLocaleString()}）</div>`;
+}
+
+function saveCaseStudy() {
+  const title = gv('cs-title').trim();
+  if (!title) { alert('タイトルを入力してください'); return; }
+  const list = ld(CS_KEY);
+  const item = {
+    id: _editingCsId || uid(),
+    type: gv('cs-type'), title, desc: gv('cs-desc'),
+    cost: gv('cs-cost'), time: gv('cs-time'),
+    date: gv('cs-date'), caseId: gv('cs-case-id'),
+    beforePhotos: _csBefore.map(p => p.dataUrl),
+    afterPhotos:  _csAfter.map(p => p.dataUrl),
+    materialIds: _csSelectedMats,
+    memo: gv('cs-memo'),
+    updatedAt: new Date().toISOString()
+  };
+  if (_editingCsId) {
+    const i = list.findIndex(x => x.id === _editingCsId);
+    if (i >= 0) list[i] = { ...list[i], ...item };
+    else list.push(item);
+  } else {
+    item.createdAt = item.updatedAt;
+    list.push(item);
+  }
+  sv2k(CS_KEY, list);
+  closeModal('casestudy-modal');
+  renderCaseStudies();
+  showBkToast('✅ 施工事例を保存しました');
+}
+
+function deleteCaseStudy() {
+  if (!_editingCsId) return;
+  if (!confirm('この施工事例を削除しますか？')) return;
+  sv2k(CS_KEY, ld(CS_KEY).filter(x => x.id !== _editingCsId));
+  closeModal('casestudy-modal');
+  renderCaseStudies();
+  showBkToast('🗑️ 施工事例を削除しました');
+}
+
+// ============================================================
+// 精算書：退去者・管理会社への請求金額
+// ============================================================
+// 精算書保存時に退去者請求額・管理会社請求額も記録する（既存calcSettlementTotal拡張）
+// 精算書モーダルに請求先区分フィールドを追加する処理
+
 // ===== INIT =====
+// メール・ファイル用ストレージキー初期化
+if (!localStorage.getItem('crm_mail_logs')) localStorage.setItem('crm_mail_logs', '[]');
+if (!localStorage.getItem('crm_mail_templates')) localStorage.setItem('crm_mail_templates', '[]');
+if (!localStorage.getItem('crm_case_files')) localStorage.setItem('crm_case_files', '[]');
+// GoogleOAuthリダイレクト処理（ページロード時）
+googleHandleRedirect();
 pwInit();
 sbInit();
 // リロード時にURLハッシュからページを復元
@@ -6146,7 +7816,7 @@ sbInit();
   const hash = location.hash.replace('#', '');
   const validPages = ['dashboard','cases','schedule','settlements','quotes','orders','invoices',
     'properties','tenants','addressbook','mgmtcos','primecs','contractors','photos','floorplans',
-    'pricelist','backup','report','settings'];
+    'pricelist','materials','casestudies','backup','report','settings'];
   if (hash && validPages.includes(hash)) {
     nav(hash);
   } else {
