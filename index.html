@@ -253,12 +253,12 @@ textarea{resize:vertical;min-height:60px;}
 <div id="pw-screen">
   <div class="pw-box">
     <h1>🔐 退去・原状回復<br>顧客管理システム</h1>
-    <p>パスワードを入力してください</p>
-    <input type="password" id="pw-input" name="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')pwCheck()">
+    <p>IDとパスワードでログインしてください</p>
+    <input type="text" id="pw-userid" name="username" autocomplete="username" placeholder="ユーザーID" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()" style="letter-spacing:normal;margin-bottom:8px;">
+    <input type="password" id="pw-input" name="password" autocomplete="current-password" placeholder="パスワード" onkeydown="if(event.key==='Enter')pwCheck()">
     <button class="pw-btn" onclick="pwCheck()">ログイン</button>
     <div class="pw-err" id="pw-err"></div>
     <div class="pw-hint" id="pw-hint"></div>
-    <span class="pw-change" onclick="pwChangeMode()" id="pw-change-link" style="display:none">パスワードを変更する</span>
   </div>
 </div>
 <!-- ===== MOBILE BOTTOM NAV ===== -->
@@ -308,7 +308,13 @@ textarea{resize:vertical;min-height:60px;}
     <div class="ni" onclick="nav('backup')"><span class="ic">💾</span>バックアップ</div>
     <div class="ni" onclick="aiPanelToggle()"><span class="ic">🤖</span>AI解析ログ</div>
   </nav>
-  <div class="sbf">ver 3.0</div>
+  <div class="sbf" style="display:flex;flex-direction:column;gap:4px;">
+    <span id="sb-user-info" style="font-size:11px;color:#94a3b8;"></span>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:10px;color:#64748b;">ver 3.0</span>
+      <button onclick="pwLogout()" style="background:none;border:1px solid #475569;color:#94a3b8;border-radius:4px;font-size:10px;padding:2px 8px;cursor:pointer;">ログアウト</button>
+    </div>
+  </div>
 </div>
 
 <div id="main-nav-wrap">
@@ -5166,69 +5172,97 @@ function mobMenuClose() {
 // ===== PASSWORD AUTH =====
 const PW_KEY = 'crm_pw_hash';
 const PW_SESSION = 'crm_pw_session';
-const PW_DEFAULT = 'kasai2024'; // 初期パスワード
+const PW_DEFAULT = 'kasai0527'; // 初期パスワード
+const PW_ID_KEY = 'crm_user_id'; // ログインID保存キー
 
 function pwHash(s) {
-  // 簡易ハッシュ（SHA不使用・ローカル用途）
   let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = Math.imul(31, h) + s.charCodeAt(i) | 0;
-  }
+  for (let i = 0; i < s.length; i++) { h = Math.imul(31, h) + s.charCodeAt(i) | 0; }
   return 'h' + Math.abs(h).toString(36);
 }
 function pwInit() {
   const screen = document.getElementById('pw-screen');
-  const hint = document.getElementById('pw-hint');
-  const changeLink = document.getElementById('pw-change-link');
-  // セッション内認証済みか確認
   if (sessionStorage.getItem(PW_SESSION) === 'ok') {
     screen.classList.add('hidden');
     return;
   }
-  // 初期パスワード未設定ならデフォルト設定
-  if (!localStorage.getItem(PW_KEY)) {
-    localStorage.setItem(PW_KEY, pwHash(PW_DEFAULT));
-    hint.textContent = '初期パスワード: ' + PW_DEFAULT + '　（設定後に変更してください）';
+  // 保存済みIDを復元
+  const savedId = localStorage.getItem(PW_ID_KEY) || '';
+  const idEl = document.getElementById('pw-userid');
+  if (idEl && savedId) idEl.value = savedId;
+  // 初期パスワード未設定ならヒント表示
+  const hint = document.getElementById('pw-hint');
+  if (!localStorage.getItem(PW_KEY) && hint) {
+    hint.textContent = '初期パスワード: ' + PW_DEFAULT;
   }
-  changeLink.style.display = '';
   screen.classList.remove('hidden');
-  setTimeout(() => document.getElementById('pw-input').focus(), 100);
+  setTimeout(() => {
+    const el = document.getElementById('pw-userid');
+    if (el) el.focus();
+  }, 100);
 }
 function pwCheck() {
+  const userId = (document.getElementById('pw-userid').value || '').trim();
   const input = document.getElementById('pw-input').value;
   const err = document.getElementById('pw-err');
+  if (!userId) { err.textContent = 'ユーザーIDを入力してください'; return; }
   if (!input) { err.textContent = 'パスワードを入力してください'; return; }
   const stored = localStorage.getItem(PW_KEY) || pwHash(PW_DEFAULT);
   if (pwHash(input) === stored) {
+    // IDとパスワードの組み合わせをユーザー識別子として保存
+    localStorage.setItem(PW_ID_KEY, userId);
     sessionStorage.setItem(PW_SESSION, 'ok');
+    sessionStorage.setItem('crm_logged_user', userId);
     document.getElementById('pw-screen').classList.add('hidden');
     err.textContent = '';
+    // Supabase同期（ログイン後）
+    if (_sbClient) sbPullAll();
+    // サイドバーにユーザー表示更新
+    renderUserInfo();
   } else {
-    err.textContent = 'パスワードが違います';
+    err.textContent = 'IDまたはパスワードが違います';
     document.getElementById('pw-input').value = '';
     document.getElementById('pw-input').focus();
   }
 }
+function pwLogout() {
+  if (!confirm('ログアウトしますか？')) return;
+  sessionStorage.removeItem(PW_SESSION);
+  sessionStorage.removeItem('crm_logged_user');
+  location.reload();
+}
 function pwChangeMode() {
+  const newId = prompt('新しいユーザーIDを入力してください（変えない場合は現在のIDを入力）:', localStorage.getItem(PW_ID_KEY) || '');
+  if (newId === null) return;
   const newPw = prompt('新しいパスワードを入力してください（6文字以上推奨）:');
   if (!newPw) return;
   if (newPw.length < 4) { alert('パスワードは4文字以上にしてください'); return; }
-  const confirm = prompt('もう一度入力してください:');
-  if (newPw !== confirm) { alert('パスワードが一致しません'); return; }
+  const confirmPw = prompt('もう一度パスワードを入力してください:');
+  if (newPw !== confirmPw) { alert('パスワードが一致しません'); return; }
+  localStorage.setItem(PW_ID_KEY, newId.trim());
   localStorage.setItem(PW_KEY, pwHash(newPw));
-  alert('✅ パスワードを変更しました');
-  // パスワード変更でユーザーIDが変わるためSupabaseに再プッシュ
+  alert('✅ ID・パスワードを変更しました');
   if (_sbClient) sbPushAll();
+  renderUserInfo();
 }
-// 設定画面にパスワード変更ボタンを追加する関数
+function renderUserInfo() {
+  const userId = sessionStorage.getItem('crm_logged_user') || localStorage.getItem(PW_ID_KEY) || '';
+  const el = document.getElementById('sb-user-info');
+  if (el) el.textContent = userId ? '👤 ' + userId : '';
+}
+// 設定画面にID・パスワード変更ボタンを表示
 function renderPwSetting() {
   const area = document.getElementById('pw-setting-area');
   if (!area) return;
+  const userId = localStorage.getItem(PW_ID_KEY) || '';
   area.innerHTML = `
     <div style="margin-top:18px;padding:14px;background:var(--wal);border-radius:8px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">🔐 ログインパスワード</div>
-      <div style="font-size:12px;color:var(--tm);margin-bottom:10px;">パスワードはこのブラウザにのみ保存されます</div>
-      <button class="btn bo" onclick="pwChangeMode()">パスワードを変更する</button>
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px;">🔐 ログインID・パスワード</div>
+      <div style="font-size:12px;color:var(--tm);margin-bottom:6px;">現在のID: <strong>${userId || '未設定'}</strong></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn bo" onclick="pwChangeMode()">ID・パスワードを変更する</button>
+        <button class="btn bd2" onclick="pwLogout()">🚪 ログアウト</button>
+      </div>
     </div>`;
 }
 
@@ -5305,10 +5339,11 @@ function saveCloudSettings() {
 let _sbClient = null;
 // Supabase Auth不要 — システムパスワードで識別するユーザーID
 function sbUserId() {
-  // ログインパスワードのハッシュをユーザーIDとして使用
-  // → 同じパスワードならどのブラウザ・アカウントからでも同じIDになる
-  const storedHash = localStorage.getItem(PW_KEY) || pwHash(PW_DEFAULT);
-  return 'pw_' + storedHash;
+  // ID＋パスワードハッシュの組み合わせをSupabaseユーザーIDとして使用
+  // → 同じID＋パスワードならどのブラウザ・アカウントでも同じデータが見える
+  const userId = localStorage.getItem(PW_ID_KEY) || 'default';
+  const pwHash_ = localStorage.getItem(PW_KEY) || pwHash(PW_DEFAULT);
+  return 'u_' + pwHash(userId + pwHash_);
 }
 function sbInit() {
   const cfg = ldO(CLOUD_KEY);
@@ -7810,6 +7845,7 @@ googleHandleRedirect();
 })();
 pwInit();
 sbInit();
+renderUserInfo();
 // リロード時にURLハッシュからページを復元
 (function restorePageFromHash() {
   const hash = location.hash.replace('#', '');
