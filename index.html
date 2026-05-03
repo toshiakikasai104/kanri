@@ -1699,7 +1699,7 @@ const K = {
 };
 const ld = k => { try { return JSON.parse(localStorage.getItem(k)) || []; } catch(e) { return []; } };
 const ldO = k => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch(e) { return {}; } };
-const sv = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+const sv = (k, v) => { localStorage.setItem(k, JSON.stringify(v)); if (typeof _sbClient !== 'undefined' && _sbClient) sbPushOne(k); };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 function nextSeq(pre) {
   const s = ldO(K.seq);
@@ -5334,6 +5334,8 @@ function saveCloudSettings() {
   localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg));
   showBkToast('☁️ クラウド設定を保存しました');
   sbInit();
+  // Geminiキーなどをクラウドにも同期
+  if (_sbClient) sbPushOne(CLOUD_KEY);
 }
 
 // ===== SUPABASE =====
@@ -5393,7 +5395,8 @@ async function sbPushOne(key) {
 }
 async function sbPushAll() {
   if (!_sbClient) return;
-  const keys = Object.values(K);
+  // 通常データキー＋クラウド設定キー（GeminiキーなどもSupabaseに保存）
+  const keys = [...Object.values(K), CLOUD_KEY];
   for (const key of keys) {
     const val = localStorage.getItem(key);
     if (val) await sbPushOne(key);
@@ -5412,12 +5415,13 @@ async function sbPullAll() {
     // クラウドのデータをローカルに反映
     data.forEach(row => { localStorage.setItem(row.data_key, row.data_value); });
     showBkToast('☁️ クラウドからデータを同期しました');
+    // 設定画面が開いていれば反映
+    loadCloudSettings();
     renderDashboard();
   } catch(e) { console.warn('sbPullAll error:', e); }
 }
 // sv（保存）をフックしてSupabaseにも自動プッシュ
-const _origSv = sv;
-window._hookedSv = (k, v) => { _origSv(k, v); if (_sbClient) sbPushOne(k); };
+// sv関数にはSupabase自動同期が組み込み済み（上記のconst sv定義を参照）
 
 // ===== GEMINI PDF OCR =====
 
@@ -6651,6 +6655,7 @@ function saveGoogleSettings() {
   cfg.driveFolderName = gv('s-drive-folder-name').trim() || '退去管理システム';
   localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg));
   showBkToast('✅ Google設定を保存しました');
+  if (_sbClient) sbPushOne(CLOUD_KEY);
 }
 function loadGoogleSettings() {
   const cfg = ldO(CLOUD_KEY);
