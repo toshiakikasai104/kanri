@@ -567,20 +567,54 @@ textarea{resize:vertical;min-height:60px;}
   <div class="card" style="max-width:580px;margin-top:14px;">
     <div class="ch"><h3>🔗 Google連携設定（Drive・Gmail）</h3></div>
     <div class="cb">
-      <p style="font-size:12px;color:var(--tm);margin-bottom:12px">Google Cloud ConsoleでOAuth 2.0クライアントIDを作成し、リダイレクトURIにこのページのURLを登録してください。</p>
-      <div class="fg c1" style="gap:11px">
-        <div class="fgr"><label>Google Client ID</label><input id="s-google-client-id" placeholder="xxxxxxxxx.apps.googleusercontent.com"></div>
-        <div class="fgr">
-          <label>Drive 保存先フォルダ名</label>
-          <input id="s-drive-folder-name" placeholder="例：退去管理システム" value="退去管理システム">
-          <span style="font-size:11px;color:var(--tm)">※Driveのルートに自動作成されます</span>
+      <!-- 接続方式タブ -->
+      <div style="display:flex;gap:0;border-bottom:2px solid var(--bd);margin-bottom:14px;">
+        <div id="gtab-sa" class="ti active" onclick="switchGoogleTab('sa')" style="font-size:12px;padding:6px 12px;">🔑 サービスアカウント（推奨）</div>
+        <div id="gtab-oauth" class="ti" onclick="switchGoogleTab('oauth')" style="font-size:12px;padding:6px 12px;">👤 個人アカウント（OAuth）</div>
+      </div>
+
+      <!-- サービスアカウント設定 -->
+      <div id="google-sa-panel">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 12px;font-size:12px;color:#1e40af;margin-bottom:12px;line-height:1.7;">
+          💡 <strong>サービスアカウント方式</strong>：どのGoogleアカウントでログインしても同じDriveフォルダに保存されます。<br>
+          Google Cloud Consoleでサービスアカウントを作成し、JSONキーをダウンロードして以下に貼り付けてください。
+        </div>
+        <div class="fg c1" style="gap:11px">
+          <div class="fgr">
+            <label>サービスアカウント JSONキー</label>
+            <textarea id="s-sa-json" rows="5" placeholder='{"type":"service_account","project_id":"...","private_key":"-----BEGIN RSA PRIVATE KEY-----\n...","client_email":"xxx@yyy.iam.gserviceaccount.com",...}' style="font-size:11px;font-family:monospace;"></textarea>
+            <span style="font-size:11px;color:var(--tm)">※Google Cloud Console → IAM → サービスアカウント → キーを作成（JSON）からダウンロード</span>
+          </div>
+          <div class="fgr">
+            <label>Drive 共有フォルダID（オプション）</label>
+            <input id="s-sa-folder-id" placeholder="共有フォルダのIDを貼り付け（空欄ならルートに自動作成）">
+            <span style="font-size:11px;color:var(--tm)">※DriveフォルダURLの末尾の文字列。フォルダをサービスアカウントのメールと共有してください。</span>
+          </div>
+          <div class="fgr">
+            <label>Drive 保存先フォルダ名</label>
+            <input id="s-drive-folder-name" placeholder="例：退去管理システム" value="退去管理システム">
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn bp" onclick="saveGoogleSettings()">💾 Google設定を保存</button>
+          <button class="btn bg2" onclick="testServiceAccount()">🔌 接続テスト</button>
+          <span id="google-status" style="font-size:12px;color:var(--tm)">未接続</span>
         </div>
       </div>
-      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn bp" onclick="saveGoogleSettings()">💾 Google設定を保存</button>
-        <button class="btn bg2" id="google-login-btn" onclick="googleSignIn()">🔑 Googleにログイン</button>
-        <button class="btn bs" id="google-logout-btn" onclick="googleSignOut()" style="display:none">🔓 ログアウト</button>
-        <span id="google-status" style="font-size:12px;color:var(--tm)">未接続</span>
+
+      <!-- OAuth設定（既存） -->
+      <div id="google-oauth-panel" style="display:none;">
+        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:12px;">
+          ⚠️ 個人アカウント方式はGoogleアカウントごとに別々のDriveに保存されます。
+        </div>
+        <div class="fg c1" style="gap:11px">
+          <div class="fgr"><label>Google Client ID</label><input id="s-google-client-id" placeholder="xxxxxxxxx.apps.googleusercontent.com"></div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn bp" onclick="saveGoogleSettings()">💾 Google設定を保存</button>
+          <button class="btn bg2" id="google-login-btn" onclick="googleSignIn()">🔑 Googleにログイン</button>
+          <button class="btn bs" id="google-logout-btn" onclick="googleSignOut()" style="display:none">🔓 ログアウト</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2068,8 +2102,10 @@ async function geminiReadContractPdf(file) {
     }
 
     if (images) {
-      // チャンク分割送信（無料枠対応）
-      data = await geminiSendChunked(cfg.geminiKey, prompt_contract_text(), images, mergeJsonResults);
+      // 契約書は最初の2ページだけ読む（重要情報は冒頭に集中、クォータ節約）
+      const contractImages = images.slice(0, 2);
+      aiLog(`📋 契約書は先頭2ページのみ解析（全${images.length}ページ中）`, '#fbbf24');
+      data = await geminiSendChunked(cfg.geminiKey, prompt_contract_text(), contractImages, mergeJsonResults);
     } else {
       // フォールバック: PDFをそのまま送信
       const b64 = await fileToBase64(file);
@@ -2396,16 +2432,16 @@ function initCombo(containerId, selectId, list, labelFn, currentVal, onChangeCb)
         <option value="">— 選択 —</option>
         ${list.map(x => `<option value="${x.id}" ${x.id===currentVal?'selected':''}>${esc(labelFn(x))}</option>`).join('')}
       </select>
-      <button type="button" class="btn bs bsm" style="white-space:nowrap;font-size:11px;padding:4px 7px;"
-        onclick="comboSwitchToText('${selectId}')" title="リストにない場合は直接入力">＋新規</button>
+      <button type="button" class="btn bp bsm" style="white-space:nowrap;font-size:11px;padding:4px 8px;background:#0891b2;"
+        onclick="comboSwitchToText('${selectId}')" title="リストにない新しい名前を入力してマスタ登録">＋新規入力</button>
     </div>
-    <div id="${selectId}-text-row" style="display:none;display:none;flex-gap:4px;">
+    <div id="${selectId}-text-row" style="display:none;flex-direction:column;gap:3px;">
       <div style="display:flex;gap:4px;align-items:center;">
-        <input id="${selectId}-text" style="flex:1" placeholder="名前を直接入力（保存時にマスタ登録）">
+        <input id="${selectId}-text" style="flex:1;border-color:#0891b2;box-shadow:0 0 0 2px #cffafe;" placeholder="新しい名前を入力（保存時にマスタへ自動登録）">
         <button type="button" class="btn bs bsm" style="font-size:11px;padding:4px 7px;"
-          onclick="comboSwitchToSelect('${selectId}')" title="リストから選択に戻す">リストへ</button>
+          onclick="comboSwitchToSelect('${selectId}')" title="リストから選択に戻す">← 選択に戻す</button>
       </div>
-      <div style="font-size:10px;color:var(--in);margin-top:2px">💡 保存時にマスタへ自動登録されます</div>
+      <div style="font-size:10px;color:#0891b2;font-weight:600;">📝 新規入力中 — 「保存」押下でマスタに自動登録されます</div>
     </div>`;
   wrap.innerHTML = html;
 }
@@ -2414,7 +2450,7 @@ function comboSwitchToText(selectId) {
   const row = $(selectId + '-combo-row');
   const textRow = $(selectId + '-text-row');
   if (row) row.style.display = 'none';
-  if (textRow) { textRow.style.display = ''; setTimeout(() => { const t = $(selectId+'-text'); if(t) t.focus(); }, 50); }
+  if (textRow) { textRow.style.display = 'flex'; setTimeout(() => { const t = $(selectId+'-text'); if(t) t.focus(); }, 50); }
 }
 function comboSwitchToSelect(selectId) {
   const row = $(selectId + '-combo-row');
@@ -2442,12 +2478,18 @@ function comboResolveId(selectId, masterKey, defaultObj) {
   // 同名が既存にないか確認
   const list = ld(masterKey);
   const existing = list.find(x => x.name === name);
-  if (existing) return existing.id;
+  if (existing) {
+    showBkToast(`ℹ️ 「${name}」は既にマスタに存在します`);
+    return existing.id;
+  }
   // 新規登録
   const newItem = Object.assign({ id: uid(), name }, defaultObj || {});
   list.push(newItem);
   sv(masterKey, list);
-  showBkToast(`✅ 「${name}」をマスタに自動登録しました`);
+  // マスタ種別名を分かりやすく表示
+  const masterLabels = { [K.props]:'物件', [K.tenants]:'入居者', [K.mgmt]:'管理会社', [K.prime]:'元請会社', [K.contractors]:'協力会社' };
+  const label = masterLabels[masterKey] || 'マスタ';
+  showBkToast(`✅ ${label}「${name}」をマスタに新規登録しました`);
   return newItem.id;
 }
 // comboの値をセット（IDならセレクトで選択、なければセレクトを空に）
@@ -3301,8 +3343,12 @@ body{font-family:'Hiragino Sans','Meiryo','MS Gothic',sans-serif;font-size:11px;
 .sign-label{font-size:9px;color:#555;margin-bottom:2px;}
 .bank-box{border:2px solid #555;padding:4px 8px;margin-top:4px;font-size:10px;}
 @media print{
-  body{width:210mm;padding:6mm 7mm;}
+  html,body{width:210mm;height:297mm;overflow:hidden;}
+  body{padding:4mm 5mm;margin:0;}
   @page{size:A4 portrait;margin:0;}
+}
+@media screen{
+  body{transform-origin:top left;}
 }
 </style></head><body>
 <div style="text-align:center;font-size:16px;font-weight:700;letter-spacing:4px;border-bottom:2px solid #333;padding-bottom:3px;margin-bottom:5px">退　去　精　算　書（税抜き）</div>
@@ -3417,7 +3463,35 @@ body{font-family:'Hiragino Sans','Meiryo','MS Gothic',sans-serif;font-size:11px;
   if (!w) { alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。'); return; }
   w.document.write(html);
   w.document.close();
-  w.onload = () => { w.focus(); w.print(); showBkToast('🖨️ 精算書の印刷ダイアログを開きました'); };
+  w.onload = () => {
+    // 1ページに収めるためコンテンツ高さをチェックしてスケール調整
+    try {
+      const body = w.document.body;
+      const pageH = 297; // mm
+      const pageW = 210; // mm
+      const dpi = 96;
+      const mmToPx = dpi / 25.4;
+      const maxH = pageH * mmToPx;
+      const maxW = pageW * mmToPx;
+      const actualH = body.scrollHeight;
+      const actualW = body.scrollWidth;
+      if (actualH > maxH || actualW > maxW) {
+        const scaleH = maxH / actualH;
+        const scaleW = maxW / actualW;
+        const scale = Math.min(scaleH, scaleW, 1);
+        if (scale < 1) {
+          body.style.transform = `scale(${scale})`;
+          body.style.transformOrigin = 'top left';
+          body.style.width = (100 / scale) + '%';
+          // @media print用にスタイル追加
+          const s = w.document.createElement('style');
+          s.textContent = `@media print{body{transform:scale(${scale});transform-origin:top left;width:${Math.round(100/scale)}%;}}`;
+          w.document.head.appendChild(s);
+        }
+      }
+    } catch(e) {}
+    w.focus(); w.print(); showBkToast('🖨️ 精算書の印刷ダイアログを開きました');
+  };
 }
 
 function printDoc(type, id) {
@@ -6645,15 +6719,37 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send'
 ].join(' ');
 
-let _googleToken = null; // { access_token, expires_at }
+let _googleToken = null; // { access_token, expires_at, email }
 let _gDriveRootId = null; // 案件管理システムのDriveフォルダID
+let _saTokenCache = null; // サービスアカウントトークンキャッシュ
+
+// ---------- タブ切替 ----------
+function switchGoogleTab(tab) {
+  $('gtab-sa').classList.toggle('active', tab === 'sa');
+  $('gtab-oauth').classList.toggle('active', tab === 'oauth');
+  $('google-sa-panel').style.display = tab === 'sa' ? '' : 'none';
+  $('google-oauth-panel').style.display = tab === 'oauth' ? '' : 'none';
+}
 
 // ---------- 設定保存/読込 ----------
 function saveGoogleSettings() {
   const cfg = ldO(CLOUD_KEY);
-  cfg.googleClientId = gv('s-google-client-id').trim();
-  cfg.driveFolderName = gv('s-drive-folder-name').trim() || '退去管理システム';
+  cfg.googleClientId = (gv('s-google-client-id') || '').trim();
+  cfg.driveFolderName = (gv('s-drive-folder-name') || '').trim() || '退去管理システム';
+  // サービスアカウント設定
+  const saJson = (gv('s-sa-json') || '').trim();
+  if (saJson) {
+    try {
+      const sa = JSON.parse(saJson);
+      cfg.saEmail = sa.client_email || '';
+      cfg.saKey = sa.private_key || '';
+      cfg.saProjectId = sa.project_id || '';
+    } catch(e) { alert('JSONの形式が正しくありません: ' + e.message); return; }
+  }
+  cfg.saFolderId = (gv('s-sa-folder-id') || '').trim();
   localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg));
+  _saTokenCache = null; // キャッシュクリア
+  _gDriveRootId = null;
   showBkToast('✅ Google設定を保存しました');
   if (_sbClient) sbPushOne(CLOUD_KEY);
 }
@@ -6661,18 +6757,28 @@ function loadGoogleSettings() {
   const cfg = ldO(CLOUD_KEY);
   sv2('s-google-client-id', cfg.googleClientId || '');
   sv2('s-drive-folder-name', cfg.driveFolderName || '退去管理システム');
-  // 保存済みトークンを復元
-  const saved = localStorage.getItem('crm_google_token');
-  if (saved) {
-    try {
-      const t = JSON.parse(saved);
-      if (t.expires_at && Date.now() < t.expires_at) {
-        _googleToken = t;
-        googleUpdateStatus(true, t.email);
-      } else {
-        localStorage.removeItem('crm_google_token');
-      }
-    } catch(e) {}
+  sv2('s-sa-folder-id', cfg.saFolderId || '');
+  // サービスアカウントが設定済みなら再構築表示
+  if (cfg.saEmail && cfg.saKey) {
+    const preview = JSON.stringify({ type:'service_account', client_email: cfg.saEmail, private_key: '(保存済み)' }, null, 2);
+    sv2('s-sa-json', preview);
+    googleUpdateStatus(true, cfg.saEmail + ' (SA)');
+    switchGoogleTab('sa');
+  } else {
+    // OAuthトークン復元
+    const saved = localStorage.getItem('crm_google_token');
+    if (saved) {
+      try {
+        const t = JSON.parse(saved);
+        if (t.expires_at && Date.now() < t.expires_at) {
+          _googleToken = t;
+          googleUpdateStatus(true, t.email);
+          switchGoogleTab('oauth');
+        } else {
+          localStorage.removeItem('crm_google_token');
+        }
+      } catch(e) {}
+    }
   }
 }
 function googleUpdateStatus(loggedIn, email) {
@@ -6693,13 +6799,116 @@ function googleUpdateStatus(loggedIn, email) {
   }
 }
 
+// ---------- サービスアカウント JWT認証 ----------
+// ブラウザのcrypto.subtle APIでRS256 JWTを生成してアクセストークンを取得
+async function saGetAccessToken() {
+  const cfg = ldO(CLOUD_KEY);
+  if (!cfg.saEmail || !cfg.saKey) return null;
+
+  // キャッシュが有効なら返す（期限5分前まで）
+  if (_saTokenCache && Date.now() < _saTokenCache.expires_at - 300000) {
+    return _saTokenCache.access_token;
+  }
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const header = { alg: 'RS256', typ: 'JWT' };
+    const payload = {
+      iss: cfg.saEmail,
+      scope: 'https://www.googleapis.com/auth/drive',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat: now,
+      exp: now + 3600
+    };
+
+    // Base64url エンコード
+    const b64url = obj => btoa(JSON.stringify(obj)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const sigInput = b64url(header) + '.' + b64url(payload);
+
+    // PEM → ArrayBuffer
+    const pemBody = cfg.saKey
+      .replace(/-----BEGIN.*?-----/g, '')
+      .replace(/-----END.*?-----/g, '')
+      .replace(/\s+/g, '');
+    const keyData = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+
+    // RSA-SHA256で署名
+    const cryptoKey = await crypto.subtle.importKey(
+      'pkcs8', keyData.buffer,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false, ['sign']
+    );
+    const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(sigInput));
+    const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const jwt = sigInput + '.' + sig;
+
+    // トークン取得
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + jwt
+    });
+    const data = await res.json();
+    if (!data.access_token) {
+      console.error('SA token error:', data);
+      return null;
+    }
+    _saTokenCache = { access_token: data.access_token, expires_at: Date.now() + (data.expires_in || 3600) * 1000 };
+    return _saTokenCache.access_token;
+  } catch(e) {
+    console.error('saGetAccessToken error:', e);
+    return null;
+  }
+}
+
+// 接続テスト
+async function testServiceAccount() {
+  const btn = event.target;
+  btn.textContent = '🔄 テスト中...'; btn.disabled = true;
+  try {
+    const token = await saGetAccessToken();
+    if (!token) { alert('❌ トークン取得失敗。JSONキーを確認してください。'); return; }
+    // Drive APIにアクセス確認
+    const res = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=1', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const cfg = ldO(CLOUD_KEY);
+      googleUpdateStatus(true, cfg.saEmail + ' (SA)');
+      showBkToast('✅ サービスアカウント接続成功！');
+      alert('✅ 接続成功！\nDrive APIへのアクセスが確認できました。');
+    } else {
+      alert('❌ Drive APIエラー: ' + JSON.stringify(data.error || data));
+    }
+  } finally {
+    btn.textContent = '🔌 接続テスト'; btn.disabled = false;
+  }
+}
+
+// ---------- 統合認証ヘッダー取得（SA優先、なければOAuth） ----------
+async function googleAuthHeaderAsync() {
+  const cfg = ldO(CLOUD_KEY);
+  // サービスアカウント優先
+  if (cfg.saEmail && cfg.saKey) {
+    const token = await saGetAccessToken();
+    if (token) return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+    return null;
+  }
+  // OAuth フォールバック
+  if (!_googleToken || Date.now() > _googleToken.expires_at) {
+    alert('Googleのセッションが切れています。再度ログインしてください。');
+    return null;
+  }
+  return { Authorization: 'Bearer ' + _googleToken.access_token, 'Content-Type': 'application/json' };
+}
+
 // ---------- OAuth2 サインイン ----------
 function googleSignIn() {
   const cfg = ldO(CLOUD_KEY);
   if (!cfg.googleClientId) {
     alert('Google Client IDを設定・保存してください'); return;
   }
-  // OAuth2 implicit flow（SPAで使用）
   const redirectUri = location.origin + location.pathname;
   const params = new URLSearchParams({
     client_id: cfg.googleClientId,
@@ -6709,7 +6918,6 @@ function googleSignIn() {
     include_granted_scopes: 'true',
     prompt: 'consent'
   });
-  // state にページを保存してリダイレクト後に復元
   const state = encodeURIComponent(location.hash || '#dashboard');
   params.set('state', state);
   location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
@@ -6717,11 +6925,11 @@ function googleSignIn() {
 function googleSignOut() {
   _googleToken = null;
   _gDriveRootId = null;
+  _saTokenCache = null;
   localStorage.removeItem('crm_google_token');
   googleUpdateStatus(false, '');
   showBkToast('Googleからログアウトしました');
 }
-// リダイレクト後のトークン取得（ページロード時に呼ぶ）
 function googleHandleRedirect() {
   const hash = location.hash;
   if (!hash.includes('access_token=')) return;
@@ -6729,7 +6937,6 @@ function googleHandleRedirect() {
   const token = params.get('access_token');
   const expiresIn = parseInt(params.get('expires_in') || '3600');
   if (!token) return;
-  // ユーザーinfo取得
   fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: 'Bearer ' + token }
   }).then(r => r.json()).then(info => {
@@ -6741,24 +6948,33 @@ function googleHandleRedirect() {
     localStorage.setItem('crm_google_token', JSON.stringify(_googleToken));
     googleUpdateStatus(true, _googleToken.email);
     showBkToast('✅ Googleにログインしました: ' + (_googleToken.email || ''));
-    // URLのトークンフラグメントを除去
     history.replaceState(null, '', location.pathname);
   }).catch(e => console.error('Google userinfo error:', e));
 }
+
+// 後方互換（同期版は非推奨、非SAの場合のみ動作）
 function googleAuthHeader() {
-  if (!_googleToken || Date.now() > _googleToken.expires_at) {
-    alert('Googleのセッションが切れています。再度ログインしてください。');
-    return null;
+  const cfg = ldO(CLOUD_KEY);
+  if (cfg.saEmail && cfg.saKey) {
+    // SAの場合は非同期版を使うべき。ここでは警告のみ
+    console.warn('googleAuthHeader() called in SA mode — use googleAuthHeaderAsync()');
+    return _saTokenCache ? { Authorization: 'Bearer ' + _saTokenCache.access_token, 'Content-Type': 'application/json' } : null;
   }
+  if (!_googleToken || Date.now() > _googleToken.expires_at) return null;
   return { Authorization: 'Bearer ' + _googleToken.access_token, 'Content-Type': 'application/json' };
 }
 
 // ---------- Drive: フォルダ作成・取得 ----------
 async function driveEnsureRootFolder() {
   if (_gDriveRootId) return _gDriveRootId;
-  const headers = googleAuthHeader();
+  const headers = await googleAuthHeaderAsync();
   if (!headers) return null;
   const cfg = ldO(CLOUD_KEY);
+  // サービスアカウントで共有フォルダIDが指定されている場合はそれを使う
+  if (cfg.saEmail && cfg.saFolderId) {
+    _gDriveRootId = cfg.saFolderId;
+    return _gDriveRootId;
+  }
   const folderName = cfg.driveFolderName || '退去管理システム';
   // 既存フォルダを検索
   const q = encodeURIComponent(`name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
@@ -6779,42 +6995,58 @@ async function driveEnsureRootFolder() {
   return _gDriveRootId;
 }
 
+// Drive: サブフォルダをparentId配下に作成/取得（headersは省略可能、省略時は自動取得）
+async function driveEnsureSubFolder(parentId, folderName, headers) {
+  if (!headers) headers = await googleAuthHeaderAsync();
+  if (!headers) return null;
+  const q = encodeURIComponent(`name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, { headers });
+  const data = await res.json();
+  if (data.files && data.files.length > 0) return data.files[0].id;
+  const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST', headers,
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
+  });
+  const folder = await cr.json();
+  return folder.id;
+}
+
 async function driveEnsureCaseFolder(caseId) {
-  const headers = googleAuthHeader();
+  const headers = await googleAuthHeaderAsync();
   if (!headers) return null;
   const c = ld(K.cases).find(x => x.id === caseId);
   const props = ld(K.props);
   const tenants = ld(K.tenants);
   const prop = props.find(p => p.id === (c && c.propertyId));
   const tenant = tenants.find(t => t.id === (c && c.tenantId));
-  const folderName = [
+
+  // 物件名フォルダ名（物件名がなければ「未設定物件」）
+  const propFolderName = (prop && prop.name) ? prop.name : '未設定物件';
+  // 案件フォルダ名
+  const caseFolderName = [
     c ? (c.caseNo || '') : '',
-    prop ? (prop.name || '') : '',
-    c ? (c.room || '') : '',
+    c ? (c.room ? c.room+'号室' : '') : '',
     tenant ? (tenant.name || '') : ''
-  ].filter(Boolean).join('_') || ('案件_' + caseId);
+  ].filter(Boolean).join('_') || ('案件_' + caseId.slice(-6));
 
   const rootId = await driveEnsureRootFolder();
   if (!rootId) return null;
-  // 既存フォルダ検索
-  const q = encodeURIComponent(`name='${folderName}' and '${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, { headers });
-  const data = await res.json();
-  if (data.files && data.files.length > 0) return data.files[0].id;
-  // 作成
-  const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
-    method: 'POST', headers,
-    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [rootId] })
-  });
-  const folder = await cr.json();
-  return folder.id;
+
+  // 物件フォルダ（ルート直下）
+  const propFolderId = await driveEnsureSubFolder(rootId, propFolderName, headers);
+  if (!propFolderId) return null;
+
+  // 案件フォルダ（物件フォルダ配下）
+  const caseFolderId = await driveEnsureSubFolder(propFolderId, caseFolderName, headers);
+  return caseFolderId;
 }
 
 // ---------- Drive: ファイルアップロード ----------
 async function driveUploadFile(file, folderId, fileName) {
-  const headers = googleAuthHeader();
+  const headers = await googleAuthHeaderAsync();
   if (!headers) return null;
-  const token = _googleToken.access_token;
+  // トークン取り出し
+  const token = headers.Authorization.replace('Bearer ', '');
   const metadata = { name: fileName || file.name, parents: folderId ? [folderId] : [] };
   const form = new FormData();
   form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -6837,7 +7069,7 @@ async function driveUploadPhoto(blob, caseId, fileName) {
 
 // ---------- Drive: ファイル一覧取得 ----------
 async function driveListCaseFiles(caseId) {
-  const headers = googleAuthHeader();
+  const headers = await googleAuthHeaderAsync();
   if (!headers) return [];
   // caseIdからフォルダIDを取得（キャッシュ利用）
   const folderKey = 'crm_drive_folder_' + caseId;
@@ -6855,7 +7087,7 @@ async function driveListCaseFiles(caseId) {
 
 // ---------- Drive: ファイル開封確認 ----------
 async function driveGetFileActivity(fileId) {
-  const headers = googleAuthHeader();
+  const headers = await googleAuthHeaderAsync();
   if (!headers) return [];
   // Drive Activity API
   const res = await fetch('https://driveactivity.googleapis.com/v2/activity:query', {
@@ -6875,22 +7107,69 @@ let _currentCaseId = null; // openCaseModal で設定済みのはずだが念の
 async function loadCaseFilesTab() {
   const caseId = window._editingCaseId;
   if (!caseId) { $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">案件を保存してからファイルを追加できます</p>'; return; }
-  if (!_googleToken) { $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">⚠️ Google連携が必要です。設定からログインしてください。</p>'; return; }
-  $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">読み込み中...</p>';
-  const files = await driveListCaseFiles(caseId);
-  if (!files.length) {
-    $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">ファイルがありません</p>';
+
+  // まずローカル保存済みファイルを表示
+  const localFiles = (ld('crm_case_files') || []).filter(f => f.caseId === caseId);
+
+  const cfg_g = ldO(CLOUD_KEY);
+  const hasGoogleConn = (cfg_g.saEmail && cfg_g.saKey) || (_googleToken && Date.now() < _googleToken.expires_at);
+  if (!hasGoogleConn) {
+    // Google未連携：ローカル記録のみ表示
+    if (!localFiles.length) {
+      $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">ファイルがありません<br><span style="font-size:11px">（Google連携するとDriveにも保存できます）</span></p>';
+    } else {
+      $('case-file-list').innerHTML = localFiles.map(f => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg);border-radius:6px;font-size:13px">
+          <span style="font-size:20px">📄</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
+            <div style="font-size:11px;color:var(--tm)">${f.uploadedAt ? new Date(f.uploadedAt).toLocaleString('ja-JP') : ''}${f.size ? '　' + Math.round(f.size/1024) + 'KB' : ''}　<span style="color:var(--wa)">☁️ Drive未保存</span></div>
+          </div>
+        </div>
+      `).join('');
+    }
+    updateSendSettlementBtn(caseId);
     return;
   }
-  $('case-file-list').innerHTML = files.map(f => `
+
+  $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">読み込み中...</p>';
+
+  // Drive上のファイル取得
+  const driveFiles = await driveListCaseFiles(caseId);
+
+  // ローカル記録とDriveファイルをマージ（driveIdで重複排除）
+  const driveIds = new Set(driveFiles.map(f => f.id));
+  // ローカルにあってDriveにないもの（未アップ or localOnly）
+  const localOnlyFiles = localFiles.filter(f => !f.driveId || !driveIds.has(f.driveId));
+
+  const allItems = [
+    ...driveFiles.map(f => ({
+      key: f.id, name: f.name, date: f.createdTime ? new Date(f.createdTime).toLocaleString('ja-JP') : '',
+      size: f.size ? Math.round(f.size/1024)+'KB' : '',
+      link: f.webViewLink, driveId: f.id, mimeType: f.mimeType, onDrive: true
+    })),
+    ...localOnlyFiles.map(f => ({
+      key: f.id, name: f.name, date: f.uploadedAt ? new Date(f.uploadedAt).toLocaleString('ja-JP') : '',
+      size: f.size ? Math.round(f.size/1024)+'KB' : '',
+      link: f.link, driveId: null, mimeType: 'application/pdf', onDrive: false
+    }))
+  ];
+
+  if (!allItems.length) {
+    $('case-file-list').innerHTML = '<p style="color:var(--tm);font-size:13px;padding:20px 0;text-align:center">ファイルがありません</p>';
+    updateSendSettlementBtn(caseId);
+    return;
+  }
+
+  $('case-file-list').innerHTML = allItems.map(f => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg);border-radius:6px;font-size:13px">
-      <span style="font-size:20px">${f.mimeType === 'application/pdf' ? '📄' : '🖼️'}</span>
+      <span style="font-size:20px">${(f.mimeType||'').includes('pdf') ? '📄' : '🖼️'}</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</div>
-        <div style="font-size:11px;color:var(--tm)">${f.createdTime ? new Date(f.createdTime).toLocaleString('ja-JP') : ''} ${f.size ? Math.round(f.size/1024)+'KB' : ''}</div>
+        <div style="font-size:11px;color:var(--tm)">${f.date}${f.size ? '　'+f.size : ''}${f.onDrive ? '' : '　<span style="color:var(--wa)">☁️ Drive未保存</span>'}</div>
       </div>
-      <a href="${f.webViewLink}" target="_blank" class="btn bs bsm" style="text-decoration:none">🔗 開く</a>
-      <button class="btn bs bsm" onclick="checkFileActivity('${f.id}','${esc(f.name)}')">👁 開封確認</button>
+      ${f.link ? `<a href="${f.link}" target="_blank" class="btn bs bsm" style="text-decoration:none">🔗 開く</a>` : ''}
+      ${f.onDrive && f.driveId ? `<button class="btn bs bsm" onclick="checkFileActivity('${f.driveId}','${esc(f.name)}')">👁 開封確認</button>` : ''}
     </div>
   `).join('');
   // 精算書送信ボタンの表示更新
@@ -6910,28 +7189,55 @@ async function checkFileActivity(fileId, fileName) {
 async function uploadScanPdf() {
   const caseId = window._editingCaseId;
   if (!caseId) { alert('案件を保存してから添付してください'); return; }
-  if (!_googleToken) { alert('Google連携が必要です。設定からログインしてください。'); return; }
   const input = document.createElement('input');
   input.type = 'file'; input.accept = 'application/pdf,image/*';
   input.onchange = async e => {
     const file = e.target.files[0]; if (!file) return;
 
+    // 自動ファイル名生成：【退去精算書】物件名_日付
+    const c = ld(K.cases).find(x => x.id === caseId) || {};
+    const prop = ld(K.props).find(p => p.id === c.propertyId) || {};
+    const propName = prop.name || '';
+    const room = c.room ? c.room+'号室' : '';
+    const today = new Date();
+    const dateStr = today.getFullYear() + ('0'+(today.getMonth()+1)).slice(-2) + ('0'+today.getDate()).slice(-2);
+    const ext = file.name.includes('.') ? '.' + file.name.split('.').pop() : '.pdf';
+    const autoName = `【退去精算書】${propName}${room ? '_'+room : ''}_${dateStr}${ext}`;
+    // 同名ファイルを新しいFileオブジェクトとして生成
+    const renamedFile = new File([file], autoName, { type: file.type });
+
+    const cfg_u = ldO(CLOUD_KEY);
+    const hasGConn = (cfg_u.saEmail && cfg_u.saKey) || (_googleToken && Date.now() < _googleToken.expires_at);
+    if (!hasGConn) {
+      // Google未連携でもローカルに記録
+      const fileRec = {
+        id: uid(), caseId, driveId: null,
+        name: autoName, link: null,
+        uploadedAt: new Date().toISOString(),
+        size: file.size, type: 'scan', localOnly: true
+      };
+      const files = ld('crm_case_files'); files.push(fileRec); sv2k('crm_case_files', files);
+      showBkToast('📎 ファイル情報を記録しました（Drive未連携）: ' + autoName);
+      loadCaseFilesTab();
+      return;
+    }
+
     // --- 1. Google Driveにアップロード ---
     showBkToast('📤 Google Driveにアップロード中...');
     const folderId = await driveEnsureCaseFolder(caseId);
     if (!folderId) { alert('Driveフォルダの作成に失敗しました'); return; }
-    const result = await driveUploadFile(file, folderId, file.name);
+    const result = await driveUploadFile(renamedFile, folderId, autoName);
     if (!result || !result.id) { alert('アップロードに失敗しました'); return; }
 
     // ローカルにファイル情報を保存
-    const fileRec = { id: uid(), caseId, driveId: result.id, name: result.name, link: result.webViewLink, uploadedAt: new Date().toISOString(), type: 'scan' };
+    const fileRec = { id: uid(), caseId, driveId: result.id, name: result.name || autoName, link: result.webViewLink, uploadedAt: new Date().toISOString(), size: renamedFile.size, type: 'scan' };
     const files = ld('crm_case_files'); files.push(fileRec); sv2k('crm_case_files', files);
-    showBkToast('✅ アップロード完了: ' + result.name);
+    showBkToast('✅ アップロード完了: ' + (result.name || autoName));
 
     // --- 2. Gemini AIでメールアドレスを抽出 ---
     const cfg = ldO(CLOUD_KEY);
     if (cfg.geminiKey) {
-      await scanPdfExtractEmail(file, caseId);
+      await scanPdfExtractEmail(renamedFile, caseId);
     }
 
     loadCaseFilesTab();
@@ -7113,9 +7419,11 @@ function openDriveFolderForCase() {
 
 // ---------- Gmail: メール送信 ----------
 async function gmailSend(to, cc, subject, body, attachFile, saveToDrive, caseId) {
-  const headers = googleAuthHeader();
+  const headers = await googleAuthHeaderAsync();
   if (!headers) return false;
-  const from = _googleToken.email;
+  // メール差出人アドレス（SA方式はサービスアカウントのメール、OAuth方式は個人メール）
+  const cfg2 = ldO(CLOUD_KEY);
+  const from = (cfg2.saEmail && cfg2.saKey) ? (ldO(K.settings).email || cfg2.saEmail) : (_googleToken ? _googleToken.email : '');
   // MIMEメッセージ構築
   let mimeMsg;
   if (attachFile) {
@@ -7153,15 +7461,26 @@ async function gmailSend(to, cc, subject, body, attachFile, saveToDrive, caseId)
   const raw = btoa(unescape(encodeURIComponent(mimeMsg))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + _googleToken.access_token, 'Content-Type': 'application/json' },
+    headers: { Authorization: headers.Authorization, 'Content-Type': 'application/json' },
     body: JSON.stringify({ raw })
   });
   const result = await res.json();
   if (result.id) {
-    // Drive保存
+    // Drive保存（ファイル名を自動設定）
     if (saveToDrive && attachFile && caseId) {
       const folderId = await driveEnsureCaseFolder(caseId);
-      if (folderId) await driveUploadFile(attachFile, folderId, attachFile.name);
+      if (folderId) {
+        // 精算書スキャンなら自動リネーム
+        const c2 = ld(K.cases).find(x => x.id === caseId) || {};
+        const prop2 = ld(K.props).find(p => p.id === c2.propertyId) || {};
+        const today2 = new Date();
+        const dateStr2 = today2.getFullYear() + ('0'+(today2.getMonth()+1)).slice(-2) + ('0'+today2.getDate()).slice(-2);
+        const ext2 = attachFile.name.includes('.') ? '.' + attachFile.name.split('.').pop() : '.pdf';
+        const autoName2 = attachFile.name.startsWith('【退去精算書】')
+          ? attachFile.name
+          : `【退去精算書】${prop2.name||''}${c2.room?'_'+c2.room+'号室':''}_${dateStr2}${ext2}`;
+        await driveUploadFile(attachFile, folderId, autoName2);
+      }
     }
     // メール履歴保存
     const mailLog = {
@@ -7194,7 +7513,8 @@ async function fileToBase64Raw(file) {
 async function gmailFetchForCase() {
   const caseId = window._editingCaseId;
   if (!caseId) { alert('案件を保存してから実行してください'); return; }
-  if (!_googleToken) { alert('Google連携が必要です'); return; }
+  const authHeaders = await googleAuthHeaderAsync();
+  if (!authHeaders) { alert('Google連携が必要です'); return; }
   const c = ld(K.cases).find(x => x.id === caseId);
   const tenants = ld(K.tenants);
   const mgmt = ld(K.mgmt);
@@ -7206,7 +7526,7 @@ async function gmailFetchForCase() {
   showBkToast('📬 Gmailから取り込み中...');
   const q = emails.map(e => `from:${e} OR to:${e}`).join(' OR ');
   const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=20`, {
-    headers: { Authorization: 'Bearer ' + _googleToken.access_token }
+    headers: { Authorization: authHeaders.Authorization }
   });
   const data = await res.json();
   const messages = data.messages || [];
@@ -7217,7 +7537,7 @@ async function gmailFetchForCase() {
   for (const msg of messages.slice(0, 10)) {
     if (existing.includes(msg.id)) continue;
     const mRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
-      headers: { Authorization: 'Bearer ' + _googleToken.access_token }
+      headers: { Authorization: authHeaders.Authorization }
     });
     const mData = await mRes.json();
     const hdrs = (mData.payload && mData.payload.headers) || [];
