@@ -442,19 +442,20 @@ textarea{resize:vertical;min-height:60px;}
 
 <!-- PRIME INVOICE MODAL -->
 <div class="mo" id="primeinvoice-modal">
-  <div class="mbox" style="max-width:760px;max-height:90vh;overflow-y:auto">
+  <div class="mbox" style="max-width:780px;max-height:92vh;overflow-y:auto">
     <div class="mh"><h3 id="pi-modal-title">💼 元請請求書作成</h3><button class="mcl" onclick="closeModal('primeinvoice-modal')">✕</button></div>
     <div class="mb" style="display:flex;flex-direction:column;gap:14px">
 
       <!-- 基本情報 -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fg">
-          <label class="fl">請求先（元請け会社） <span class="req">*</span></label>
+          <label class="fl">請求先（元請け会社）</label>
           <div id="pi-prime-combo"></div>
+          <div style="font-size:11px;color:#64748b;margin-top:3px">未登録の場合は直接入力も可</div>
         </div>
         <div class="fg">
           <label class="fl">請求No</label>
-          <input id="pi-no" class="fi" placeholder="例：INV-2024-001（空白で自動採番）">
+          <input id="pi-no" class="fi" placeholder="空白で自動採番（PI-0001）">
         </div>
         <div class="fg">
           <label class="fl">発行日 <span class="req">*</span></label>
@@ -463,56 +464,42 @@ textarea{resize:vertical;min-height:60px;}
         <div class="fg">
           <label class="fl">支払期限</label>
           <input id="pi-limit" type="date" class="fi">
-          <div style="font-size:11px;color:#64748b;margin-top:3px">末締め翌月末の場合は自動計算ボタン↓</div>
           <button type="button" class="btn bs bsm" style="margin-top:4px" onclick="piAutoLimit()">末締め翌月末で自動計算</button>
-        </div>
-      </div>
-
-      <!-- 税区分 -->
-      <div class="fg">
-        <label class="fl">税表示</label>
-        <div style="display:flex;gap:12px;align-items:center">
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-            <input type="radio" name="pi-tax-mode" value="taxin" checked onchange="piCalc()"> 税込表示
-          </label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-            <input type="radio" name="pi-tax-mode" value="taxout" onchange="piCalc()"> 税抜表示
-          </label>
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-            <input type="radio" name="pi-tax-mode" value="both" onchange="piCalc()"> 両方表示
-          </label>
         </div>
       </div>
 
       <!-- 件名 -->
       <div class="fg">
         <label class="fl">件名</label>
-        <input id="pi-subject" class="fi" placeholder="例：原状回復工事費用 2024年5月分">
+        <input id="pi-subject" class="fi" placeholder="例：原状回復工事等 業務委託料 一式">
       </div>
 
-      <!-- 対象案件選択 -->
+      <!-- 明細行 -->
       <div class="fg">
         <label class="fl" style="display:flex;align-items:center;justify-content:space-between">
-          <span>対象案件・明細</span>
-          <button type="button" class="btn bp bsm" onclick="piAddCaseRow()">＋ 案件を追加</button>
+          <span>明細（請求内容）</span>
+          <button type="button" class="btn bp bsm" onclick="piAddLineRow()">＋ 行を追加</button>
         </label>
-        <div id="pi-case-rows" style="display:flex;flex-direction:column;gap:8px;margin-top:6px"></div>
-      </div>
-
-      <!-- 手動明細追加 -->
-      <div class="fg">
-        <label class="fl" style="display:flex;align-items:center;justify-content:space-between">
-          <span>手動明細（追加入力）</span>
-          <button type="button" class="btn bs bsm" onclick="piAddManualRow()">＋ 行を追加</button>
-        </label>
-        <div id="pi-manual-rows" style="display:flex;flex-direction:column;gap:4px;margin-top:6px"></div>
+        <div style="margin-top:8px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:var(--si,#f1f5f9)">
+              <th style="padding:6px 8px;text-align:left;font-weight:600;color:#374151;width:48%">内容・品名</th>
+              <th style="padding:6px 8px;text-align:center;font-weight:600;color:#374151;width:10%">数量</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:600;color:#374151;width:20%">単価（税込）</th>
+              <th style="padding:6px 8px;text-align:right;font-weight:600;color:#374151;width:18%">金額（税込）</th>
+              <th style="width:4%"></th>
+            </tr></thead>
+            <tbody id="pi-line-rows"></tbody>
+          </table>
+        </div>
+        <div style="font-size:11px;color:#64748b;margin-top:4px">※ 金額は税込で入力してください。印刷時に税抜・消費税を自動計算します。</div>
       </div>
 
       <!-- 合計表示 -->
       <div style="background:var(--si,#f8fafc);border-radius:8px;padding:12px 16px">
         <table style="width:100%;border-collapse:collapse">
-          <tr><td style="padding:4px 0;color:#64748b">小計（税抜）</td><td id="pi-subtotal-disp" style="text-align:right;font-weight:600">¥0</td></tr>
-          <tr><td style="padding:4px 0;color:#64748b">消費税（10%）</td><td id="pi-tax-disp" style="text-align:right">¥0</td></tr>
+          <tr><td style="padding:3px 0;color:#64748b;font-size:13px">小計（税抜換算）</td><td id="pi-subtotal-disp" style="text-align:right;font-weight:600">¥0</td></tr>
+          <tr><td style="padding:3px 0;color:#64748b;font-size:13px">消費税（10%）</td><td id="pi-tax-disp" style="text-align:right">¥0</td></tr>
           <tr style="border-top:2px solid var(--bd,#e2e8f0)">
             <td style="padding:6px 0;font-weight:700;font-size:15px">合計（税込）</td>
             <td id="pi-total-disp" style="text-align:right;font-weight:700;font-size:15px;color:#1a56db">¥0</td>
@@ -524,11 +511,11 @@ textarea{resize:vertical;min-height:60px;}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="fg">
           <label class="fl">振込先</label>
-          <textarea id="pi-bank" class="fi" rows="2" placeholder="銀行名・支店名・口座番号など（空白の場合は自社情報から引用）"></textarea>
+          <textarea id="pi-bank" class="fi" rows="3" placeholder="空白の場合は自社情報の振込先を使用"></textarea>
         </div>
         <div class="fg">
           <label class="fl">備考</label>
-          <textarea id="pi-memo" class="fi" rows="2" placeholder="備考・特記事項"></textarea>
+          <textarea id="pi-memo" class="fi" rows="3" placeholder="備考・特記事項"></textarea>
         </div>
       </div>
 
@@ -8387,32 +8374,31 @@ setTimeout(checkBackupReminder, 2000);
 <script>
 const PI_KEY = 'crm_primeinvoices';
 let _piEditId = null;
-let _piCaseRows = []; // [{id, desc, amount, taxMode}]
-let _piManualRows = []; // [{desc, qty, unit, price}]
+let _piLineRows = []; // [{desc, qty, price}] ※priceは税込金額
 
 // ========== リスト表示 ==========
 function renderPrimeInvoiceList() {
-  const list = ld(PI_KEY);
+  const list = ld(PI_KEY) || [];
   const tb = $('primeinvoices-tb');
   const em = $('primeinvoices-em');
   if (!tb) return;
-  const primes = ld(K.prime);
-  if (!list || list.length === 0) {
-    tb.innerHTML = ''; em.style.display = '';return;
+  if (list.length === 0) {
+    tb.innerHTML = '';
+    if (em) em.style.display = '';
+    return;
   }
-  em.style.display = 'none';
+  if (em) em.style.display = 'none';
   const statusColor = { '未送付':'#f59e0b','送付済':'#3b82f6','入金済':'#10b981','未回収':'#ef4444' };
-  tb.innerHTML = list.sort((a,b) => (b.date||'').localeCompare(a.date||'')).map(inv => {
-    const prime = primes.find(x => x.id === inv.primeId);
-    const caseNames = (inv.caseRows||[]).map(r => r.desc).filter(Boolean).join('、');
+  tb.innerHTML = list.slice().sort((a,b) => (b.date||'').localeCompare(a.date||'')).map(inv => {
     const sc = statusColor[inv.status] || '#64748b';
+    const lineDescs = (inv.lineRows||[]).map(r=>r.desc).filter(Boolean).join('、');
     return `<tr>
       <td>${esc(inv.no||'')}</td>
-      <td>${esc(prime ? prime.name : (inv.primeName||''))}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(caseNames||inv.subject||'')}</td>
+      <td>${esc(inv.primeName||'')}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(lineDescs||inv.subject||'')}</td>
       <td>${fmtD(inv.date)}</td>
       <td>${fmtD(inv.limit)}</td>
-      <td style="text-align:right;font-weight:600">${fmt$(inv.totalTax)}</td>
+      <td style="text-align:right;font-weight:600">${fmt$(inv.totalTax||0)}</td>
       <td><span style="background:${sc}22;color:${sc};padding:2px 8px;border-radius:4px;font-size:12px">${esc(inv.status||'')}</span></td>
       <td style="white-space:nowrap">
         <button class="btn bp bsm" onclick="openPrimeInvoiceModal('${inv.id}')">編集</button>
@@ -8426,230 +8412,89 @@ function renderPrimeInvoiceList() {
 // ========== モーダルを開く ==========
 function openPrimeInvoiceModal(id) {
   _piEditId = id || null;
-  _piCaseRows = [];
-  _piManualRows = [];
+  _piLineRows = [];
 
   const inv = id ? (ld(PI_KEY).find(x => x.id === id) || {}) : {};
 
-  // 請求先コンボ
-  const primes = ld(K.prime);
+  // 請求先コンボ（オプション）
+  const primes = ld(K.prime) || [];
   initCombo('pi-prime-combo', 'pi-prime', primes, x => x.name, inv.primeId || '', null);
 
   // 基本情報
   sv2('pi-no', inv.no || '');
   sv2('pi-date', inv.date || new Date().toISOString().slice(0,10));
   sv2('pi-limit', inv.limit || '');
-  sv2('pi-subject', inv.subject || '');
+  sv2('pi-subject', inv.subject || '原状回復工事等 業務委託料 一式');
   sv2('pi-bank', inv.bank || '');
-  sv2('pi-memo', inv.memo || '');
+  sv2('pi-memo', inv.memo !== undefined ? inv.memo : '※記載金額は税込です。※各案件の精算内訳に基づき、差引後の業務委託料としてご請求いたします。※外注費および手数料控除後の金額を請求額としております。');
   sv2('pi-status', inv.status || '未送付');
 
-  // 税モード
-  const taxMode = inv.taxMode || 'both';
-  document.querySelectorAll('input[name="pi-tax-mode"]').forEach(r => { r.checked = r.value === taxMode; });
-
-  // 案件行
-  const caseRowsWrap = $('pi-case-rows');
-  caseRowsWrap.innerHTML = '';
-  _piCaseRows = [];
-  (inv.caseRows || []).forEach(r => piAddCaseRow(r));
-
-  // 手動明細行
-  const manualRowsWrap = $('pi-manual-rows');
-  manualRowsWrap.innerHTML = '';
-  _piManualRows = [];
-  (inv.manualRows || []).forEach(r => piAddManualRow(r));
+  // 明細行を復元
+  const tbody = $('pi-line-rows');
+  tbody.innerHTML = '';
+  _piLineRows = [];
+  const rows = inv.lineRows && inv.lineRows.length > 0 ? inv.lineRows : [{ desc: '', qty: 1, price: 0 }];
+  rows.forEach(r => piAddLineRow(r));
 
   $('pi-modal-title').textContent = id ? '💼 元請請求書 編集' : '💼 元請請求書 作成';
   piCalc();
   openModal('primeinvoice-modal');
 }
 
-// ========== 案件行を追加 ==========
-function piAddCaseRow(data) {
-  const idx = _piCaseRows.length;
-  const cases = ld(K.cases);
-  const props = ld(K.props);
-  const quotes = ld(K.quotes);
-  const settlements = ld(K.settlements);
+// ========== 明細行を追加 ==========
+function piAddLineRow(data) {
+  const idx = _piLineRows.length;
+  const row = data ? { desc: data.desc||'', qty: data.qty||1, price: data.price||0 } : { desc: '', qty: 1, price: 0 };
+  _piLineRows.push(row);
 
-  const row = { id: data ? data.id : null, desc: data ? data.desc : '', amount: data ? data.amount : 0, sourceType: data ? (data.sourceType||'quote') : 'quote', sourceId: data ? (data.sourceId||'') : '' };
-  _piCaseRows.push(row);
-
-  const wrap = $('pi-case-rows');
-  const div = document.createElement('div');
-  div.id = `pi-case-row-${idx}`;
-  div.style.cssText = 'background:var(--si,#f8fafc);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;border:1px solid var(--bd,#e2e8f0)';
-
-  // 案件選択
-  const caseOptions = cases.map(c => {
-    const p = props.find(x => x.id === c.propertyId);
-    return `<option value="${c.id}" ${c.id === row.id ? 'selected':''}>${esc((p?p.name:'不明') + (c.room?' '+c.room+'号室':'') + ' / ' + (c.tenantName||''))}</option>`;
-  }).join('');
-
-  div.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center">
-      <select id="pi-case-sel-${idx}" class="fi" style="flex:2" onchange="piCaseSelected(${idx})">
-        <option value="">— 案件を選択 —</option>
-        ${caseOptions}
-      </select>
-      <button type="button" onclick="piRemoveCaseRow(${idx})" style="background:#ef4444;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;flex-shrink:0">✕</button>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-      <div class="fg" style="margin:0">
-        <label style="font-size:11px;color:#64748b">金額の元データ</label>
-        <select id="pi-case-src-${idx}" class="fi" onchange="piCaseSourceChanged(${idx})">
-          <option value="quote">見積書から引用</option>
-          <option value="settlement">精算書から引用</option>
-          <option value="manual">手動入力</option>
-        </select>
-      </div>
-      <div class="fg" id="pi-case-src-sel-wrap-${idx}" style="margin:0">
-        <label style="font-size:11px;color:#64748b">書類を選択</label>
-        <select id="pi-case-src-sel-${idx}" class="fi" onchange="piCaseDocSelected(${idx})">
-          <option value="">— 選択 —</option>
-        </select>
-      </div>
-      <div class="fg" style="margin:0">
-        <label style="font-size:11px;color:#64748b">金額（税抜）</label>
-        <input type="number" id="pi-case-amt-${idx}" class="fi" placeholder="0" value="${row.amount||0}" oninput="piCaseAmtChanged(${idx})">
-      </div>
-    </div>
-    <div class="fg" style="margin:0">
-      <label style="font-size:11px;color:#64748b">明細説明</label>
-      <input id="pi-case-desc-${idx}" class="fi" placeholder="例：あすかK-1 206号室 原状回復工事" value="${esc(row.desc||'')}">
-    </div>
+  const tbody = $('pi-line-rows');
+  const tr = document.createElement('tr');
+  tr.id = `pi-lr-${idx}`;
+  tr.innerHTML = `
+    <td style="padding:4px 6px">
+      <input class="fi" id="pi-lr-desc-${idx}" style="margin:0;width:100%" placeholder="例：アーク天台104 原状回復工事等 業務委託料" value="${esc(row.desc)}" oninput="piCalc()">
+    </td>
+    <td style="padding:4px 6px;width:80px">
+      <input type="number" class="fi" id="pi-lr-qty-${idx}" style="margin:0;text-align:center" value="${row.qty}" min="1" oninput="piCalc()">
+    </td>
+    <td style="padding:4px 6px;width:140px">
+      <input type="number" class="fi" id="pi-lr-price-${idx}" style="margin:0;text-align:right" placeholder="0" value="${row.price}" oninput="piCalc()">
+    </td>
+    <td id="pi-lr-amt-${idx}" style="padding:4px 10px;text-align:right;font-weight:600;white-space:nowrap;width:120px">¥0</td>
+    <td style="padding:4px 6px;width:36px">
+      <button type="button" onclick="piRemoveLineRow(${idx})" style="background:#ef4444;color:#fff;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:13px">✕</button>
+    </td>
   `;
-  wrap.appendChild(div);
-
-  // 初期値設定
-  if (row.id) {
-    $(`pi-case-sel-${idx}`).value = row.id;
-    piCaseSelected(idx, false);
-  }
-  if (row.sourceType) {
-    $(`pi-case-src-${idx}`).value = row.sourceType;
-    piCaseSourceChanged(idx, false);
-  }
-  if (row.sourceId) {
-    $(`pi-case-src-sel-${idx}`).value = row.sourceId;
-  }
+  tbody.appendChild(tr);
+  piCalc();
 }
 
-function piRemoveCaseRow(idx) {
-  const el = $(`pi-case-row-${idx}`);
+function piRemoveLineRow(idx) {
+  const el = $(`pi-lr-${idx}`);
   if (el) el.remove();
-  _piCaseRows[idx] = null;
-  piCalc();
-}
-
-function piCaseSelected(idx, doCalc = true) {
-  const caseId = $(`pi-case-sel-${idx}`).value;
-  _piCaseRows[idx] = _piCaseRows[idx] || {};
-  _piCaseRows[idx].id = caseId;
-  piCaseSourceChanged(idx, doCalc);
-}
-
-function piCaseSourceChanged(idx, doCalc = true) {
-  const srcType = $(`pi-case-src-${idx}`) ? $(`pi-case-src-${idx}`).value : 'quote';
-  _piCaseRows[idx] = _piCaseRows[idx] || {};
-  _piCaseRows[idx].sourceType = srcType;
-
-  const caseId = $(`pi-case-sel-${idx}`) ? $(`pi-case-sel-${idx}`).value : '';
-  const selWrap = $(`pi-case-src-sel-wrap-${idx}`);
-  const sel = $(`pi-case-src-sel-${idx}`);
-  if (!sel) return;
-
-  if (srcType === 'manual') {
-    if (selWrap) selWrap.style.display = 'none';
-    return;
-  }
-  if (selWrap) selWrap.style.display = '';
-
-  let docs = [];
-  if (srcType === 'quote') {
-    docs = ld(K.quotes).filter(q => !caseId || q.caseId === caseId);
-    sel.innerHTML = '<option value="">— 見積書を選択 —</option>' + docs.map(q => `<option value="${q.id}">${esc(q.no||q.id)} ${fmt$(q.totalTax)}</option>`).join('');
-  } else if (srcType === 'settlement') {
-    docs = ld(K.settlements).filter(s => !caseId || s.caseId === caseId);
-    sel.innerHTML = '<option value="">— 精算書を選択（複数可）—</option>' + docs.map(s => `<option value="${s.id}">${esc(s.no||s.id)} ${fmt$(s.totalTax)}</option>`).join('');
-  }
-  if (doCalc) piCalc();
-}
-
-function piCaseDocSelected(idx) {
-  const srcType = $(`pi-case-src-${idx}`).value;
-  const docId = $(`pi-case-src-sel-${idx}`).value;
-  if (!docId) return;
-
-  let amount = 0;
-  if (srcType === 'quote') {
-    const q = ld(K.quotes).find(x => x.id === docId);
-    if (q) amount = q.subtotal || 0;
-  } else if (srcType === 'settlement') {
-    const s = ld(K.settlements).find(x => x.id === docId);
-    if (s) amount = s.subtotal || 0;
-  }
-  $(`pi-case-amt-${idx}`).value = amount;
-  _piCaseRows[idx] = _piCaseRows[idx] || {};
-  _piCaseRows[idx].sourceId = docId;
-  _piCaseRows[idx].amount = amount;
-  piCalc();
-}
-
-function piCaseAmtChanged(idx) {
-  _piCaseRows[idx] = _piCaseRows[idx] || {};
-  _piCaseRows[idx].amount = Number($(`pi-case-amt-${idx}`).value) || 0;
-  piCalc();
-}
-
-// ========== 手動明細行 ==========
-function piAddManualRow(data) {
-  const idx = _piManualRows.length;
-  const row = data || { desc: '', qty: 1, unit: '式', price: 0 };
-  _piManualRows.push(row);
-
-  const wrap = $('pi-manual-rows');
-  const div = document.createElement('div');
-  div.id = `pi-manual-row-${idx}`;
-  div.style.cssText = 'display:grid;grid-template-columns:3fr 1fr 1fr 2fr auto;gap:6px;align-items:center';
-  div.innerHTML = `
-    <input class="fi" id="pi-mr-desc-${idx}" placeholder="内容・品名" value="${esc(row.desc||'')}" style="margin:0" oninput="piCalc()">
-    <input type="number" class="fi" id="pi-mr-qty-${idx}" placeholder="数量" value="${row.qty||1}" style="margin:0" oninput="piCalc()">
-    <input class="fi" id="pi-mr-unit-${idx}" placeholder="単位" value="${esc(row.unit||'式')}" style="margin:0">
-    <input type="number" class="fi" id="pi-mr-price-${idx}" placeholder="単価（税抜）" value="${row.price||0}" style="margin:0" oninput="piCalc()">
-    <button type="button" onclick="piRemoveManualRow(${idx})" style="background:#ef4444;color:#fff;border:none;border-radius:4px;padding:4px 8px;cursor:pointer">✕</button>
-  `;
-  wrap.appendChild(div);
-}
-
-function piRemoveManualRow(idx) {
-  const el = $(`pi-manual-row-${idx}`);
-  if (el) el.remove();
-  _piManualRows[idx] = null;
+  _piLineRows[idx] = null;
   piCalc();
 }
 
 // ========== 合計計算 ==========
 function piCalc() {
-  let subtotal = 0;
-  _piCaseRows.forEach((r, idx) => {
+  let totalTaxIn = 0;
+  _piLineRows.forEach((r, idx) => {
     if (!r) return;
-    const amt = Number($(`pi-case-amt-${idx}`) ? $(`pi-case-amt-${idx}`).value : r.amount) || 0;
-    subtotal += amt;
+    const qty = Number($(`pi-lr-qty-${idx}`) ? $(`pi-lr-qty-${idx}`).value : r.qty) || 1;
+    const price = Number($(`pi-lr-price-${idx}`) ? $(`pi-lr-price-${idx}`).value : r.price) || 0;
+    const amt = qty * price;
+    totalTaxIn += amt;
+    const amtEl = $(`pi-lr-amt-${idx}`);
+    if (amtEl) amtEl.textContent = fmt$(amt);
   });
-  _piManualRows.forEach((r, idx) => {
-    if (!r) return;
-    const qty = Number($(`pi-mr-qty-${idx}`) ? $(`pi-mr-qty-${idx}`).value : r.qty) || 0;
-    const price = Number($(`pi-mr-price-${idx}`) ? $(`pi-mr-price-${idx}`).value : r.price) || 0;
-    subtotal += qty * price;
-  });
-  const tax = Math.floor(subtotal * 0.1);
-  const total = subtotal + tax;
+  // 税込合計から税抜・消費税を逆算
+  const subtotal = Math.round(totalTaxIn / 1.1);
+  const tax = totalTaxIn - subtotal;
   if ($('pi-subtotal-disp')) $('pi-subtotal-disp').textContent = fmt$(subtotal);
   if ($('pi-tax-disp')) $('pi-tax-disp').textContent = fmt$(tax);
-  if ($('pi-total-disp')) $('pi-total-disp').textContent = fmt$(total);
-  return { subtotal, tax, total };
+  if ($('pi-total-disp')) $('pi-total-disp').textContent = fmt$(totalTaxIn);
+  return { subtotal, tax, total: totalTaxIn };
 }
 
 // ========== 末締め翌月末 ==========
@@ -8657,56 +8502,42 @@ function piAutoLimit() {
   const dateVal = gv('pi-date');
   if (!dateVal) return;
   const d = new Date(dateVal);
-  // 当月末締め → 翌月末払い
-  const nextMonth = new Date(d.getFullYear(), d.getMonth() + 2, 0); // 翌月末
+  const nextMonth = new Date(d.getFullYear(), d.getMonth() + 2, 0);
   sv2('pi-limit', nextMonth.toISOString().slice(0,10));
 }
 
 // ========== 保存 ==========
 function savePrimeInvoice() {
-  const primeId = gv('pi-prime') || '';
+  if (!gv('pi-date')) { alert('発行日を入力してください'); return; }
+
+  // 請求先名取得（任意）
+  const primeId = (typeof gv === 'function' ? gv('pi-prime') : '') || '';
   const primeName = (() => {
     const sel = $('pi-prime');
     if (sel && sel.value) {
       const opt = sel.options[sel.selectedIndex];
-      return opt ? opt.textContent : '';
+      return opt ? opt.textContent.trim() : '';
     }
-    return $('pi-prime-text') ? gv('pi-prime-text') : '';
+    const txt = $('pi-prime-text');
+    return txt ? txt.value.trim() : '';
   })();
 
-  if (!primeId && !primeName) { alert('請求先（元請け会社）を選択または入力してください'); return; }
-  if (!gv('pi-date')) { alert('発行日を入力してください'); return; }
-
-  // 案件行収集
-  const caseRows = _piCaseRows.filter(Boolean).map((r, i) => {
-    const realIdx = _piCaseRows.indexOf(r);
+  // 明細行収集
+  const lineRows = _piLineRows.filter(Boolean).map((r, i) => {
+    const realIdx = _piLineRows.indexOf(r);
     return {
-      id: $(`pi-case-sel-${realIdx}`) ? $(`pi-case-sel-${realIdx}`).value : r.id,
-      desc: $(`pi-case-desc-${realIdx}`) ? $(`pi-case-desc-${realIdx}`).value : r.desc,
-      amount: Number($(`pi-case-amt-${realIdx}`) ? $(`pi-case-amt-${realIdx}`).value : r.amount) || 0,
-      sourceType: $(`pi-case-src-${realIdx}`) ? $(`pi-case-src-${realIdx}`).value : r.sourceType,
-      sourceId: $(`pi-case-src-sel-${realIdx}`) ? $(`pi-case-src-sel-${realIdx}`).value : r.sourceId,
-    };
-  });
-
-  // 手動明細収集
-  const manualRows = _piManualRows.filter(Boolean).map((r, i) => {
-    const realIdx = _piManualRows.indexOf(r);
-    return {
-      desc: $(`pi-mr-desc-${realIdx}`) ? $(`pi-mr-desc-${realIdx}`).value : r.desc,
-      qty: Number($(`pi-mr-qty-${realIdx}`) ? $(`pi-mr-qty-${realIdx}`).value : r.qty) || 1,
-      unit: $(`pi-mr-unit-${realIdx}`) ? $(`pi-mr-unit-${realIdx}`).value : r.unit,
-      price: Number($(`pi-mr-price-${realIdx}`) ? $(`pi-mr-price-${realIdx}`).value : r.price) || 0,
+      desc: $(`pi-lr-desc-${realIdx}`) ? $(`pi-lr-desc-${realIdx}`).value : r.desc,
+      qty: Number($(`pi-lr-qty-${realIdx}`) ? $(`pi-lr-qty-${realIdx}`).value : r.qty) || 1,
+      price: Number($(`pi-lr-price-${realIdx}`) ? $(`pi-lr-price-${realIdx}`).value : r.price) || 0,
     };
   });
 
   const { subtotal, tax, total } = piCalc();
-  const taxMode = document.querySelector('input[name="pi-tax-mode"]:checked')?.value || 'both';
 
   // 請求No自動採番
   let no = gv('pi-no');
   if (!no) {
-    const list = ld(PI_KEY);
+    const list = ld(PI_KEY) || [];
     const maxNo = list.reduce((m, x) => {
       const n = parseInt((x.no||'').replace(/\D/g,'')) || 0;
       return Math.max(m, n);
@@ -8720,15 +8551,14 @@ function savePrimeInvoice() {
     date: gv('pi-date'),
     limit: gv('pi-limit'),
     subject: gv('pi-subject'),
-    taxMode,
-    caseRows, manualRows,
+    lineRows,
     subtotal, tax, totalTax: total,
     bank: gv('pi-bank'),
     memo: gv('pi-memo'),
-    status: gv('pi-status'),
+    status: gv('pi-status') || '未送付',
   };
 
-  const list = ld(PI_KEY);
+  const list = ld(PI_KEY) || [];
   if (_piEditId) {
     const i = list.findIndex(x => x.id === _piEditId);
     if (i >= 0) list[i] = inv; else list.push(inv);
@@ -8744,7 +8574,7 @@ function savePrimeInvoice() {
 // ========== 削除 ==========
 function deletePrimeInvoice(id) {
   if (!confirm('この請求書を削除しますか？')) return;
-  sv(PI_KEY, ld(PI_KEY).filter(x => x.id !== id));
+  sv(PI_KEY, (ld(PI_KEY)||[]).filter(x => x.id !== id));
   renderPrimeInvoiceList();
   showBkToast('🗑️ 削除しました');
 }
@@ -8753,120 +8583,64 @@ function deletePrimeInvoice(id) {
 function printPrimeInvoice(id, fromModal) {
   let inv;
   if (fromModal) {
-    // モーダルから仮保存して印刷
-    const primeId = gv('pi-prime') || '';
+    const primeId = (typeof gv === 'function' ? gv('pi-prime') : '') || '';
     const primeName = (() => {
       const sel = $('pi-prime');
-      if (sel && sel.value) { const opt = sel.options[sel.selectedIndex]; return opt ? opt.textContent : ''; }
-      return $('pi-prime-text') ? gv('pi-prime-text') : '';
+      if (sel && sel.value) { const opt = sel.options[sel.selectedIndex]; return opt ? opt.textContent.trim() : ''; }
+      const txt = $('pi-prime-text'); return txt ? txt.value.trim() : '';
     })();
-    const caseRows = _piCaseRows.filter(Boolean).map((r, i) => {
-      const realIdx = _piCaseRows.indexOf(r);
+    const lineRows = _piLineRows.filter(Boolean).map((r, i) => {
+      const realIdx = _piLineRows.indexOf(r);
       return {
-        desc: $(`pi-case-desc-${realIdx}`) ? $(`pi-case-desc-${realIdx}`).value : r.desc,
-        amount: Number($(`pi-case-amt-${realIdx}`) ? $(`pi-case-amt-${realIdx}`).value : r.amount) || 0,
-      };
-    });
-    const manualRows = _piManualRows.filter(Boolean).map((r, i) => {
-      const realIdx = _piManualRows.indexOf(r);
-      return {
-        desc: $(`pi-mr-desc-${realIdx}`) ? $(`pi-mr-desc-${realIdx}`).value : r.desc,
-        qty: Number($(`pi-mr-qty-${realIdx}`) ? $(`pi-mr-qty-${realIdx}`).value : r.qty) || 1,
-        unit: $(`pi-mr-unit-${realIdx}`) ? $(`pi-mr-unit-${realIdx}`).value : r.unit,
-        price: Number($(`pi-mr-price-${realIdx}`) ? $(`pi-mr-price-${realIdx}`).value : r.price) || 0,
+        desc: $(`pi-lr-desc-${realIdx}`) ? $(`pi-lr-desc-${realIdx}`).value : r.desc,
+        qty: Number($(`pi-lr-qty-${realIdx}`) ? $(`pi-lr-qty-${realIdx}`).value : r.qty) || 1,
+        price: Number($(`pi-lr-price-${realIdx}`) ? $(`pi-lr-price-${realIdx}`).value : r.price) || 0,
       };
     });
     const { subtotal, tax, total } = piCalc();
-    const taxMode = document.querySelector('input[name="pi-tax-mode"]:checked')?.value || 'both';
     inv = {
       no: gv('pi-no') || '（未保存）',
       primeId, primeName,
       date: gv('pi-date'),
       limit: gv('pi-limit'),
       subject: gv('pi-subject'),
-      taxMode, caseRows, manualRows,
+      lineRows,
       subtotal, tax, totalTax: total,
       bank: gv('pi-bank'),
       memo: gv('pi-memo'),
     };
   } else {
-    inv = ld(PI_KEY).find(x => x.id === id);
+    inv = (ld(PI_KEY)||[]).find(x => x.id === id);
     if (!inv) return;
   }
 
   const s = ldO(K.settings);
-  const taxMode = inv.taxMode || 'both';
-
-  // 明細行生成（案件行）
-  const caseItemRows = (inv.caseRows||[]).map(r => {
-    if (!r.desc && !r.amount) return '';
-    const subtotalAmt = Number(r.amount) || 0;
-    const taxAmt = Math.floor(subtotalAmt * 0.1);
-    const totalAmt = subtotalAmt + taxAmt;
-    let amtDisplay = '';
-    if (taxMode === 'taxin') amtDisplay = fmt$(totalAmt);
-    else if (taxMode === 'taxout') amtDisplay = fmt$(subtotalAmt);
-    else amtDisplay = `${fmt$(subtotalAmt)}<br><span style="font-size:11px;color:#6b7280">（税込 ${fmt$(totalAmt)}）</span>`;
-    return `<tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${esc(r.desc||'')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center">1</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center">式</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${amtDisplay}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center">※</td>
-    </tr>`;
-  }).join('');
-
-  // 明細行生成（手動行）
-  const manualItemRows = (inv.manualRows||[]).map(r => {
-    const qty = Number(r.qty) || 1;
-    const price = Number(r.price) || 0;
-    const subtotalAmt = qty * price;
-    const taxAmt = Math.floor(subtotalAmt * 0.1);
-    const totalAmt = subtotalAmt + taxAmt;
-    let priceDisplay = '';
-    if (taxMode === 'taxin') priceDisplay = fmt$(price + Math.floor(price*0.1));
-    else if (taxMode === 'taxout') priceDisplay = fmt$(price);
-    else priceDisplay = fmt$(price);
-    let amtDisplay = '';
-    if (taxMode === 'taxin') amtDisplay = fmt$(totalAmt);
-    else if (taxMode === 'taxout') amtDisplay = fmt$(subtotalAmt);
-    else amtDisplay = `${fmt$(subtotalAmt)}<br><span style="font-size:11px;color:#6b7280">（税込 ${fmt$(totalAmt)}）</span>`;
-    return `<tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${esc(r.desc||'')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${qty}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${esc(r.unit||'式')}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${priceDisplay}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">※</td>
-    </tr>`;
-  }).join('');
-
-  // 合計行
-  const subtotal = inv.subtotal || 0;
-  const tax = inv.tax || 0;
-  const totalTax = inv.totalTax || 0;
-
-  let totalDisplay = '';
-  if (taxMode === 'taxin') {
-    totalDisplay = `<tr class="sr tot"><td colspan="4">合計（税込）</td><td>${fmt$(totalTax)}</td></tr>`;
-  } else if (taxMode === 'taxout') {
-    totalDisplay = `
-      <tr class="sr"><td colspan="4">小計（税抜）</td><td>${fmt$(subtotal)}</td></tr>
-      <tr class="sr"><td colspan="4">消費税（10%）※</td><td>${fmt$(tax)}</td></tr>
-      <tr class="sr tot"><td colspan="4">合計（税込）</td><td>${fmt$(totalTax)}</td></tr>`;
-  } else {
-    totalDisplay = `
-      <tr class="sr"><td colspan="4">小計（税抜）</td><td>${fmt$(subtotal)}</td></tr>
-      <tr class="sr"><td colspan="4">消費税（10%）※</td><td>${fmt$(tax)}</td></tr>
-      <tr class="sr tot"><td colspan="4">合計（税込）</td><td>${fmt$(totalTax)}</td></tr>`;
-  }
-
   const bankInfo = inv.bank || s.bank || '';
-  const invNo = s.invno || ''; // インボイス登録番号
+  const invNo = s.invno || '';
 
-  // 印鑑エリア（画像があれば表示）
+  // 印鑑エリア
   const stampHtml = s.stampImage
     ? `<div style="position:absolute;bottom:10px;right:10px;opacity:0.85"><img src="${s.stampImage}" style="width:70px;height:70px;object-fit:contain"></div>`
     : `<div style="position:absolute;bottom:10px;right:10px;width:65px;height:65px;border:2px solid #dc2626;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#dc2626;font-size:10px;font-weight:700;text-align:center;line-height:1.3">${esc(s.company||'社印')}</div>`;
+
+  // 明細行生成（税込金額で表示、税抜換算も）
+  const itemRows = (inv.lineRows||[]).map(r => {
+    const qty = Number(r.qty) || 1;
+    const priceTaxIn = Number(r.price) || 0;
+    const amtTaxIn = qty * priceTaxIn;
+    const amtTaxOut = Math.round(amtTaxIn / 1.1);
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">${esc(r.desc||'')}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center">${qty}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt$(priceTaxIn)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${fmt$(amtTaxIn)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:11px">10%※</td>
+    </tr>`;
+  }).join('');
+
+  const subtotal = inv.subtotal || 0;
+  const tax = inv.tax || 0;
+  const totalTax = inv.totalTax || 0;
 
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>請求書 ${esc(inv.no||'')}</title>
 <style>
@@ -8885,7 +8659,8 @@ h1{text-align:center;font-size:22px;font-weight:700;margin:0 0 4px;letter-spacin
 table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px;}
 thead th{background:#1a56db;color:#fff;padding:7px 10px;text-align:left;}
 thead th:nth-child(n+2){text-align:center;}
-thead th:last-child{text-align:right;}
+thead th:nth-child(3){text-align:right;}
+thead th:nth-child(4){text-align:right;}
 .sr td{padding:6px 10px;text-align:right;border-top:1px solid #e5e7eb;}
 .sr td:first-child{text-align:left;font-weight:600;}
 .sr.tot td{font-size:15px;font-weight:700;color:#1a56db;border-top:2px solid #1a56db;}
@@ -8901,7 +8676,7 @@ thead th:last-child{text-align:right;}
 <div class="head-grid">
   <div>
     <div class="to-box">
-      <div class="to-name">${esc(inv.primeName || '')} 御中</div>
+      <div class="to-name">${esc(inv.primeName||'')}${inv.primeName ? ' 御中' : ''}</div>
     </div>
     ${inv.subject ? `<div style="margin-bottom:6px;font-size:13px"><strong>件名：</strong>${esc(inv.subject)}</div>` : ''}
     <div class="amount-box">
@@ -8930,25 +8705,26 @@ thead th:last-child{text-align:right;}
 
 <table>
   <thead><tr>
-    <th style="width:42%">内容・品名</th>
+    <th style="width:44%">内容・品名</th>
     <th style="width:8%">数量</th>
-    <th style="width:8%">単位</th>
-    <th style="width:22%">単価/金額</th>
-    <th style="width:20%">税区分</th>
+    <th style="width:22%;text-align:right">単価（税込）</th>
+    <th style="width:18%;text-align:right">金額（税込）</th>
+    <th style="width:8%">税率</th>
   </tr></thead>
   <tbody>
-    ${caseItemRows}
-    ${manualItemRows}
+    ${itemRows}
   </tbody>
   <tbody>
-    ${totalDisplay}
+    <tr class="sr"><td colspan="4">小計（税抜換算）</td><td>${fmt$(subtotal)}</td></tr>
+    <tr class="sr"><td colspan="4">消費税（10%）※</td><td>${fmt$(tax)}</td></tr>
+    <tr class="sr tot"><td colspan="4">合計（税込）</td><td>${fmt$(totalTax)}</td></tr>
   </tbody>
 </table>
 
 <div class="tax-note">※ 消費税率10%（標準税率）対象</div>
 
-${bankInfo ? `<div class="bank-box"><strong>振込先：</strong>${esc(bankInfo)}</div>` : ''}
-${inv.memo ? `<div class="note-box"><strong>備考：</strong>${esc(inv.memo)}</div>` : ''}
+${bankInfo ? `<div class="bank-box"><strong>振込先：</strong>${bankInfo.replace(/\n/g,'<br>')}</div>` : ''}
+${inv.memo ? `<div class="note-box">${esc(inv.memo).replace(/。/g,'。<br>')}</div>` : ''}
 ${s.note ? `<div class="note-box">${esc(s.note)}</div>` : ''}
 </body></html>`;
 
