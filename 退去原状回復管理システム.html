@@ -8519,9 +8519,9 @@ function openPrimeInvoiceModal(id) {
   const rows = inv.lineRows && inv.lineRows.length > 0
     ? inv.lineRows
     : [{ propertyName:'', mgmtName:'', workDesc:'', note:'',
-         salesType:'tax_included', salesAmt:0,
-         outsrcType:'tax_included', outsrcAmt:0,
-         commType:'tax_included',  commAmt:0 }];
+         salesType:'tax_excluded', salesAmt:0,
+         outsrcType:'tax_excluded', outsrcAmt:0,
+         commType:'tax_excluded',  commAmt:0 }];
   rows.forEach(r => piAddLineRow(r));
 
   $('pi-modal-title').textContent = id ? '💼 元請請求書 編集' : '💼 元請請求書 作成';
@@ -8542,11 +8542,11 @@ function piAddLineRow(data) {
     mgmtName:     r.mgmtName     || '',
     workDesc:     r.workDesc     || '',
     note:         r.note         || '',
-    salesType:    r.salesType    || 'tax_included',
+    salesType:    r.salesType    || 'tax_excluded',
     salesAmt:     r.salesAmt     || 0,
-    outsrcType:   r.outsrcType   || 'tax_included',
+    outsrcType:   r.outsrcType   || 'tax_excluded',
     outsrcAmt:    r.outsrcAmt    || 0,
-    commType:     r.commType     || 'tax_included',
+    commType:     r.commType     || 'tax_excluded',
     commAmt:      r.commAmt      || 0,
   };
   _piLineRows.push(row);
@@ -8556,13 +8556,20 @@ function piAddLineRow(data) {
   div.id = `pi-lr-${idx}`;
   div.style.cssText = 'background:var(--bg,#fff);border:1px solid var(--bd,#e2e8f0);border-radius:10px;padding:14px;position:relative;';
 
-  // 税区分セレクト共通HTML
-  const taxSel = (id, val) => `
-    <select id="${id}" class="fi" style="margin:0;font-size:12px;padding:3px 6px;width:auto"
-      onchange="piCalcRow(${idx})">
-      <option value="tax_included"  ${val==='tax_included' ?'selected':''}>税込入力</option>
-      <option value="tax_excluded" ${val==='tax_excluded'?'selected':''}>税抜入力</option>
-    </select>`;
+  // 税区分トグルボタン共通HTML（デフォルト:税抜、切替時に確認ダイアログ）
+  const taxToggle = (fieldId, val) => {
+    const isIncl = val === 'tax_included';
+    return `
+    <div style="display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid #cbd5e1;font-size:11px;font-weight:600;flex-shrink:0">
+      <button type="button" id="${fieldId}-btn-ex"
+        style="padding:4px 10px;border:none;cursor:pointer;transition:all .15s;${!isIncl?'background:#1a56db;color:#fff;':'background:#f1f5f9;color:#475569;'}"
+        onclick="piTaxToggle('${fieldId}','tax_excluded',${idx})">税抜</button>
+      <button type="button" id="${fieldId}-btn-in"
+        style="padding:4px 10px;border:none;cursor:pointer;transition:all .15s;${isIncl?'background:#f59e0b;color:#fff;':'background:#f1f5f9;color:#475569;'}"
+        onclick="piTaxToggle('${fieldId}','tax_included',${idx})">税込</button>
+    </div>
+    <input type="hidden" id="${fieldId}" value="${isIncl?'tax_included':'tax_excluded'}">`;
+  };
 
   div.innerHTML = `
     <button type="button" onclick="piRemoveLineRow(${idx})"
@@ -8600,40 +8607,31 @@ function piAddLineRow(data) {
       <!-- 売上 -->
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px">
         <div style="font-size:12px;font-weight:600;color:#166534;margin-bottom:6px">💰 売上金額</div>
-        <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-          ${taxSel(`pi-lr-salest-${idx}`, row.salesType)}
-          <span style="font-size:11px;color:#64748b">で入力</span>
-        </div>
+        <div style="margin-bottom:6px">${taxToggle(`pi-lr-salest-${idx}`, row.salesType)}</div>
         <input type="number" class="fi" id="pi-lr-salesa-${idx}" min="0"
           style="margin:0;text-align:right" placeholder="0" value="${row.salesAmt}"
           oninput="piCalcRow(${idx})">
-        <div id="pi-lr-sales-result-${idx}" style="margin-top:6px;font-size:11px;color:#374151;line-height:1.7"></div>
+        <div id="pi-lr-sales-result-${idx}" style="margin-top:5px;font-size:11px;color:#374151;line-height:1.7"></div>
       </div>
 
       <!-- 外注費 -->
       <div style="background:#fefce8;border:1px solid #fef08a;border-radius:8px;padding:10px">
         <div style="font-size:12px;font-weight:600;color:#713f12;margin-bottom:6px">🔧 外注費</div>
-        <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-          ${taxSel(`pi-lr-outsrct-${idx}`, row.outsrcType)}
-          <span style="font-size:11px;color:#64748b">で入力</span>
-        </div>
+        <div style="margin-bottom:6px">${taxToggle(`pi-lr-outsrct-${idx}`, row.outsrcType)}</div>
         <input type="number" class="fi" id="pi-lr-outsrca-${idx}" min="0"
           style="margin:0;text-align:right" placeholder="0" value="${row.outsrcAmt}"
           oninput="piCalcRow(${idx})">
-        <div id="pi-lr-outsrc-result-${idx}" style="margin-top:6px;font-size:11px;color:#374151;line-height:1.7"></div>
+        <div id="pi-lr-outsrc-result-${idx}" style="margin-top:5px;font-size:11px;color:#374151;line-height:1.7"></div>
       </div>
 
       <!-- 手数料 -->
       <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px">
         <div style="font-size:12px;font-weight:600;color:#581c87;margin-bottom:6px">📊 元請手数料</div>
-        <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
-          ${taxSel(`pi-lr-commt-${idx}`, row.commType)}
-          <span style="font-size:11px;color:#64748b">で入力</span>
-        </div>
+        <div style="margin-bottom:6px">${taxToggle(`pi-lr-commt-${idx}`, row.commType)}</div>
         <input type="number" class="fi" id="pi-lr-comma-${idx}" min="0"
           style="margin:0;text-align:right" placeholder="0" value="${row.commAmt}"
           oninput="piCalcRow(${idx})">
-        <div id="pi-lr-comm-result-${idx}" style="margin-top:6px;font-size:11px;color:#374151;line-height:1.7"></div>
+        <div id="pi-lr-comm-result-${idx}" style="margin-top:5px;font-size:11px;color:#374151;line-height:1.7"></div>
       </div>
     </div>
 
@@ -8654,13 +8652,51 @@ function piAddLineRow(data) {
 }
 
 // ================================================================
+// 税区分トグル（確認ダイアログ付き）
+// ================================================================
+function piTaxToggle(fieldId, newVal, idx) {
+  const hidden = $(fieldId);
+  if (!hidden) return;
+  const currentVal = hidden.value;
+  if (currentVal === newVal) return; // 変化なし
+
+  // 税込に切り替える場合のみ警告
+  if (newVal === 'tax_included') {
+    const ok = confirm(
+      '⚠️ 税込入力に切り替えます。\n\n' +
+      '入力した金額が「税込金額」として扱われ、\n' +
+      '税抜金額・消費税が自動計算されます。\n\n' +
+      'よろしいですか？'
+    );
+    if (!ok) return;
+  }
+
+  // hidden inputを更新
+  hidden.value = newVal;
+
+  // ボタンの見た目を更新
+  const btnEx = $(`${fieldId}-btn-ex`);
+  const btnIn = $(`${fieldId}-btn-in`);
+  if (btnEx) {
+    btnEx.style.background = newVal === 'tax_excluded' ? '#1a56db' : '#f1f5f9';
+    btnEx.style.color      = newVal === 'tax_excluded' ? '#fff'    : '#475569';
+  }
+  if (btnIn) {
+    btnIn.style.background = newVal === 'tax_included' ? '#f59e0b' : '#f1f5f9';
+    btnIn.style.color      = newVal === 'tax_included' ? '#fff'    : '#475569';
+  }
+
+  piCalcRow(idx);
+}
+
+// ================================================================
 // 1行の計算・表示更新
 // ================================================================
 function piCalcRow(idx) {
   if (!_piLineRows[idx]) return null;
 
   const gn = id => { const el = $(id); return el ? Number(el.value)||0 : 0; };
-  const gs = id => { const el = $(id); return el ? el.value : 'tax_included'; };
+  const gs = id => { const el = $(id); return el ? el.value : 'tax_excluded'; };
 
   const salesAmt  = gn(`pi-lr-salesa-${idx}`);
   const salesType = gs(`pi-lr-salest-${idx}`);
@@ -8674,20 +8710,34 @@ function piCalcRow(idx) {
   const comm    = calculateTaxAmount(commAmt,   commType);
   const billing = calculateCompanyBillingAmount(sales, outsrc, comm);
 
+  // result表示ヘルパー：税込入力時のみ「税抜」を強調表示、税抜入力時は税込を表示
+  const renderResult = (el, calc, type) => {
+    if (!el) return;
+    if (type === 'tax_included') {
+      // 税込入力 → 税抜を強調（入力値の内訳を示す）
+      el.innerHTML =
+        `<span style="background:#fef3c7;border-radius:3px;padding:1px 5px;font-weight:700;color:#92400e">` +
+        `税抜：${fmt$(calc.excludingTaxAmount)}</span>　消費税：${fmt$(calc.taxAmount)}`;
+    } else {
+      // 税抜入力 → 税込を表示
+      el.innerHTML =
+        `消費税：${fmt$(calc.taxAmount)}　` +
+        `<span style="background:#dbeafe;border-radius:3px;padding:1px 5px;font-weight:700;color:#1e40af">` +
+        `税込：${fmt$(calc.includingTaxAmount)}</span>`;
+    }
+  };
+
   // 売上表示
   const sRes = $(`pi-lr-sales-result-${idx}`);
-  if (sRes) sRes.innerHTML =
-    `税抜：${fmt$(sales.excludingTaxAmount)}<br>消費税：${fmt$(sales.taxAmount)}<br>税込：<strong>${fmt$(sales.includingTaxAmount)}</strong>`;
+  renderResult(sRes, sales, salesType);
 
   // 外注費表示
   const oRes = $(`pi-lr-outsrc-result-${idx}`);
-  if (oRes) oRes.innerHTML =
-    `税抜：${fmt$(outsrc.excludingTaxAmount)}<br>消費税：${fmt$(outsrc.taxAmount)}<br>税込：<strong>${fmt$(outsrc.includingTaxAmount)}</strong>`;
+  renderResult(oRes, outsrc, outsrcType);
 
   // 手数料表示
   const cRes = $(`pi-lr-comm-result-${idx}`);
-  if (cRes) cRes.innerHTML =
-    `税抜：${fmt$(comm.excludingTaxAmount)}<br>消費税：${fmt$(comm.taxAmount)}<br>税込：<strong>${fmt$(comm.includingTaxAmount)}</strong>`;
+  renderResult(cRes, comm, commType);
 
   // 自社請求額表示
   const bEx  = $(`pi-lr-bill-ex-${idx}`);
@@ -8729,7 +8779,7 @@ function piCalc() {
   _piLineRows.forEach((r, idx) => {
     if (!r) return;
     const gn = id => { const el = $(id); return el ? Number(el.value)||0 : 0; };
-    const gs = id => { const el = $(id); return el ? el.value : 'tax_included'; };
+    const gs = id => { const el = $(id); return el ? el.value : 'tax_excluded'; };
     const sales  = calculateTaxAmount(gn(`pi-lr-salesa-${idx}`),  gs(`pi-lr-salest-${idx}`));
     const outsrc = calculateTaxAmount(gn(`pi-lr-outsrca-${idx}`), gs(`pi-lr-outsrct-${idx}`));
     const comm   = calculateTaxAmount(gn(`pi-lr-comma-${idx}`),   gs(`pi-lr-commt-${idx}`));
@@ -8778,7 +8828,7 @@ function savePrimeInvoice() {
   const lineRows = _piLineRows.filter(Boolean).map((r, i) => {
     const idx = _piLineRows.indexOf(r);
     const gn  = id => { const el = $(id); return el ? Number(el.value)||0 : 0; };
-    const gs  = id => { const el = $(id); return el ? el.value : 'tax_included'; };
+    const gs  = id => { const el = $(id); return el ? el.value : 'tax_excluded'; };
     const gs2 = id => { const el = $(id); return el ? el.value : ''; };
     const salesType  = gs(`pi-lr-salest-${idx}`);
     const salesAmt   = gn(`pi-lr-salesa-${idx}`);
@@ -8859,7 +8909,7 @@ function _buildInvoiceFromModal() {
   const lineRows = _piLineRows.filter(Boolean).map((r, i) => {
     const idx = _piLineRows.indexOf(r);
     const gn  = id => { const el = $(id); return el ? Number(el.value)||0 : 0; };
-    const gs  = id => { const el = $(id); return el ? el.value : 'tax_included'; };
+    const gs  = id => { const el = $(id); return el ? el.value : 'tax_excluded'; };
     const gs2 = id => { const el = $(id); return el ? el.value : ''; };
     const salesType=gs(`pi-lr-salest-${idx}`); const salesAmt=gn(`pi-lr-salesa-${idx}`);
     const outsrcType=gs(`pi-lr-outsrct-${idx}`); const outsrcAmt=gn(`pi-lr-outsrca-${idx}`);
@@ -8883,16 +8933,18 @@ function _buildInvoiceHtml(inv) {
   const s = ldO(K.settings);
   const bankInfo = inv.bank || s.bank || '';
   const invNo    = s.invno  || '';
+  const ACCENT   = '#1a56db'; // 青アクセントカラー（添付レイアウトに合わせる）
 
-  const stampHtml = s.stampImage
-    ? `<img src="${s.stampImage}" style="width:64px;height:64px;object-fit:contain;opacity:0.9">`
-    : `<div style="width:60px;height:60px;border:2px solid #c00;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#c00;font-size:9px;font-weight:700;text-align:center;line-height:1.3">${esc(s.company||'社印')}</div>`;
+  // 日付フォーマット
+  const fmtYMD = d => {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (isNaN(dt)) return d;
+    return `${dt.getFullYear()}/${dt.getMonth()+1}/${dt.getDate()}`;
+  };
+  const fmtN = n => Math.round(n).toLocaleString('ja-JP');
 
-  // 発行日 YYYY年M月D日
-  const fmtJp  = d => { if(!d) return ''; const dt=new Date(d); return isNaN(dt)?d:`${dt.getFullYear()}年 ${dt.getMonth()+1} 月 ${dt.getDate()} 日`; };
-  const fmtLim = d => { if(!d) return ''; const dt=new Date(d); return isNaN(dt)?d:`${dt.getMonth()+1} 月 ${dt.getDate()} 日`; };
-  const fmtN   = n => Math.round(n).toLocaleString('ja-JP');
-
+  // 振込先の行
   const bankLines = (bankInfo||'').split('\n').map(l=>l.trim()).filter(Boolean);
 
   // 明細行計算
@@ -8904,6 +8956,7 @@ function _buildInvoiceHtml(inv) {
     const comm   = calculateTaxAmount(r.commAmt||0,   r.commType||'tax_included');
     return { ...r, billing: calculateCompanyBillingAmount(sales, outsrc, comm) };
   });
+
   const itemRows = lineRows.map(r => {
     const b = r.billing || {excludingTaxAmount:0,taxAmount:0,includingTaxAmount:0};
     sumExcl += b.excludingTaxAmount;
@@ -8913,141 +8966,194 @@ function _buildInvoiceHtml(inv) {
     const label = r.propertyName ? `${r.propertyName} ${workLabel}` : workLabel;
     const noteText = r.mgmtName || r.note || '';
     return `<tr>
-      <td class="desc">${esc(label)}</td>
-      <td class="num">1</td><td class="num">式</td>
-      <td class="amt">${fmtN(b.excludingTaxAmount)}</td>
-      <td class="amt">${fmtN(b.excludingTaxAmount)}</td>
-      <td class="note">${esc(noteText)}</td>
+      <td class="td-date">${esc(fmtYMD(inv.date))}</td>
+      <td class="td-desc">${esc(label)}</td>
+      <td class="td-center"></td>
+      <td class="td-center">1</td>
+      <td class="td-center">式</td>
+      <td class="td-right">¥${fmtN(b.excludingTaxAmount)}</td>
+      <td class="td-center">10%</td>
+      <td class="td-right">¥${fmtN(b.excludingTaxAmount)}</td>
     </tr>`;
   }).join('');
 
   // 空行を補充（最低10行確保してA4を埋める）
   const emptyCount = Math.max(0, 10 - lineRows.length);
-  const emptyRows = Array(emptyCount).fill('<tr><td class="desc">&nbsp;</td><td class="num"></td><td class="num"></td><td class="amt"></td><td class="amt"></td><td class="note"></td></tr>').join('');
+  const emptyRows = Array(emptyCount).fill(
+    '<tr><td class="td-date">&nbsp;</td><td class="td-desc"></td><td class="td-center"></td><td class="td-center"></td><td class="td-center"></td><td class="td-right"></td><td class="td-center"></td><td class="td-right"></td></tr>'
+  ).join('');
+
+  // 請求番号（保存済みのinv.noを使用）
+  const invNoDisplay = inv.no || '';
 
   return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
-<title>ご請求書 ${esc(inv.no||'')}</title>
+<title>請求書 ${esc(invNoDisplay)}</title>
 <style>
-/* ===== A4縦 1ページ固定レイアウト ===== */
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{width:210mm;height:297mm;overflow:hidden}
+html,body{width:210mm;height:297mm;overflow:hidden;background:#fff}
 body{
-  font-family:'Hiragino Mincho ProN','MS Mincho','Yu Mincho','serif';
-  font-size:11.5px;color:#000;background:#fff;
-  padding:10mm 12mm 8mm;
-  display:flex;flex-direction:column;
+  font-family:'Hiragino Kaku Gothic ProN','Hiragino Sans','Meiryo','sans-serif';
+  font-size:10.5px;color:#111;
+  padding:8mm 10mm 6mm;
+  display:flex;flex-direction:column;gap:0;
 }
-/* 発行日 */
-.date-row{text-align:right;font-size:11px;margin-bottom:4px;letter-spacing:.05em;flex-shrink:0}
-/* タイトル */
-.title{text-align:center;font-size:24px;font-weight:700;letter-spacing:.6em;margin:4px 0 2px;flex-shrink:0}
-.subtitle{text-align:center;font-size:9.5px;color:#555;margin-bottom:6px;letter-spacing:.1em;flex-shrink:0}
-/* 上部グリッド（宛先＋自社） */
-.top-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;align-items:start;flex-shrink:0}
-.to-name{font-size:17px;font-weight:700;border-bottom:1.5px solid #000;padding-bottom:3px;display:inline-block;min-width:180px}
-.to-honorific{font-size:13px;margin-left:5px}
-.issuer{font-size:10.5px;line-height:1.7;position:relative;text-align:left}
-.issuer .company{font-size:13px;font-weight:700;margin-bottom:1px}
-.stamp-wrap{position:absolute;top:0;right:0}
-.reg-no{font-size:9.5px;margin-top:2px;color:#333}
-/* 振込先＋請求額 */
-.mid-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 8px;align-items:start;flex-shrink:0}
-.bank-note{font-size:9.5px;color:#444;margin-bottom:3px}
-.bank-box{border:1px solid #999;padding:6px 10px;font-size:10.5px;line-height:1.8;background:#fafafa}
-.amount-area{border:1.5px solid #000}
-.amount-row{display:flex;align-items:center;border-bottom:1px solid #000}
-.amount-label{padding:5px 8px;font-size:11.5px;font-weight:700;white-space:nowrap;border-right:1px solid #000;background:#f0f0f0}
-.amount-value{padding:5px 10px;font-size:19px;font-weight:700;flex:1;text-align:right}
-.amount-yen{padding:5px 7px;font-size:13px;border-left:1px solid #000}
-.limit-row{display:flex;align-items:center;padding:4px 8px;font-size:11px}
-.limit-label{font-weight:700;white-space:nowrap;margin-right:8px}
-/* 明細テーブル（flex:1で残り全部使う） */
-.table-wrap{flex:1;display:flex;flex-direction:column;min-height:0}
-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
-table th,table td{border:1px solid #aaa;padding:4px 5px}
-thead tr{background:#ddd}
-thead th{text-align:center;font-weight:700}
-tbody td.desc{text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-tbody td.num{text-align:center}
-tbody td.amt{text-align:right;font-variant-numeric:tabular-nums}
-tbody td.note{text-align:left;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-tfoot td{border:1px solid #aaa;padding:4px 6px}
-tfoot tr.subtotal td,tfoot tr.tax td{background:#f0f0f0}
-tfoot tr.total td{font-weight:700;font-size:12.5px;background:#ddd}
-tfoot td.sum-label{text-align:right;font-weight:600}
-tfoot td.sum-val{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
-.note-box{font-size:9.5px;color:#555;margin-top:5px;border-top:1px dashed #bbb;padding-top:4px;flex-shrink:0}
-/* 印刷設定 */
+/* ===== ヘッダーバー ===== */
+.header-bar{
+  background:${ACCENT};color:#fff;text-align:center;
+  font-size:20px;font-weight:700;letter-spacing:.3em;
+  padding:5px 0;margin-bottom:5px;flex-shrink:0;
+}
+/* ===== 発行日・請求番号 ===== */
+.meta-row{text-align:right;font-size:10px;margin-bottom:4px;line-height:1.8;flex-shrink:0}
+/* ===== 宛先＋自社 ===== */
+.top-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:5px;flex-shrink:0;align-items:start}
+.to-block{}
+.to-name{font-size:16px;font-weight:700;letter-spacing:.05em}
+.to-honorific{font-size:14px;font-weight:700;margin-left:4px}
+.to-addr{font-size:9.5px;color:#444;margin-top:1px}
+.request-text{font-size:10px;margin-top:4px}
+.issuer-block{font-size:10px;line-height:1.7;text-align:left;position:relative;padding-right:70px}
+.issuer-name{font-size:13px;font-weight:700;margin-bottom:1px}
+.reg-no{font-size:9px;color:#555}
+.stamp-wrap{position:absolute;top:0;right:0;width:60px;height:60px;display:flex;align-items:center;justify-content:center}
+/* ===== 請求金額ボックス ===== */
+.amount-box{margin-bottom:5px;flex-shrink:0}
+.amount-label-bar{background:${ACCENT};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;text-align:center;letter-spacing:.1em}
+.amount-value-row{border:1px solid #ccc;border-top:none;padding:4px 10px;text-align:right;font-size:21px;font-weight:700;letter-spacing:.05em}
+/* ===== 振込先・振込期日 ===== */
+.bank-table{border-collapse:collapse;width:50%;margin-bottom:5px;flex-shrink:0;font-size:10px}
+.bank-table td{border:1px solid #aaa;padding:3px 7px;vertical-align:top}
+.bank-label{background:${ACCENT};color:#fff;font-weight:700;white-space:nowrap;width:60px;text-align:center}
+.bank-note-text{font-size:9px;color:#555;margin-bottom:2px}
+/* ===== 明細テーブル ===== */
+.table-wrap{flex:1;display:flex;flex-direction:column;min-height:0;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed}
+th,td{border:1px solid #aaa}
+thead th{background:${ACCENT};color:#fff;text-align:center;padding:3px 2px;font-weight:700;font-size:9.5px}
+.td-date{text-align:center;padding:2px 2px;white-space:nowrap;overflow:hidden}
+.td-desc{text-align:left;padding:2px 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.td-center{text-align:center;padding:2px 2px}
+.td-right{text-align:right;padding:2px 4px;font-variant-numeric:tabular-nums}
+/* ===== フッター（小計エリア） ===== */
+.footer-area{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:3px;flex-shrink:0;align-items:start}
+.tax-breakdown{font-size:9px}
+.tax-breakdown table{font-size:9px}
+.tax-breakdown th{background:${ACCENT};color:#fff;text-align:center;padding:2px 5px;font-weight:700}
+.tax-breakdown td{padding:2px 6px;text-align:right}
+.subtotal-area{min-width:160px}
+.subtotal-row{display:flex;justify-content:space-between;align-items:center;padding:2px 6px;font-size:10px;border-bottom:1px solid #ddd}
+.subtotal-row.total-row{background:${ACCENT};color:#fff;font-weight:700;font-size:11px;border-bottom:none}
+.subtotal-label{white-space:nowrap;margin-right:10px}
+.subtotal-val{font-variant-numeric:tabular-nums;font-weight:700}
+/* ===== 備考 ===== */
+.biko-bar{background:${ACCENT};color:#fff;font-size:10px;font-weight:700;padding:3px 8px;text-align:center;letter-spacing:.1em;margin-top:4px;flex-shrink:0}
+.biko-box{border:1px solid #aaa;border-top:none;padding:5px 8px;min-height:18mm;font-size:10px;flex-shrink:0}
+/* ===== 印刷設定 ===== */
 @media print{
-  html,body{width:210mm;height:297mm;overflow:hidden;padding:10mm 12mm 8mm}
+  html,body{width:210mm;height:297mm;overflow:hidden;padding:8mm 10mm 6mm}
   @page{size:A4 portrait;margin:0}
 }
 </style></head><body>
 
-<div class="date-row">${fmtJp(inv.date)}</div>
-<div class="title">ご 請 求 書</div>
-<div class="subtitle">（適格請求書）</div>
+<!-- ヘッダーバー -->
+<div class="header-bar">請 求 書</div>
 
+<!-- 発行日・請求番号 -->
+<div class="meta-row">
+  発行日&emsp;${esc(fmtYMD(inv.date))}<br>
+  請求番号&emsp;${esc(invNoDisplay)}
+</div>
+
+<!-- 宛先 ＋ 自社情報 -->
 <div class="top-grid">
-  <div>
-    <div style="margin-bottom:4px">
+  <div class="to-block">
+    <div>
       <span class="to-name">${esc(inv.primeName||'　　　　　　　　　　')}</span><span class="to-honorific">御中</span>
     </div>
-    <div style="font-size:10.5px;margin-top:6px">下記の通りご請求申し上げます。</div>
+    <div class="request-text">下記の通り、ご請求申し上げます。</div>
   </div>
-  <div class="issuer">
-    <div class="company">${esc(s.company||'')}</div>
-    ${s.owner?`<div>${esc(s.owner)}</div>`:''}
+  <div class="issuer-block">
+    <div class="issuer-name">${esc(s.company||'')}</div>
     ${s.zip?`<div>〒${esc(s.zip)}</div>`:''}
-    ${s.address?`<div>${esc(s.address)}</div>`:''}
-    ${s.phone?`<div>TEL/FAX：${esc(s.phone)}</div>`:''}
-    ${s.email?`<div>mail：${esc(s.email)}</div>`:''}
+    ${s.address?`<div>住所：${esc(s.address)}</div>`:''}
+    ${s.phone?`<div>電話：${esc(s.phone)}</div>`:''}
+    ${s.email?`<div>メール：${esc(s.email)}</div>`:''}
     ${invNo?`<div class="reg-no">登録番号：${esc(invNo)}</div>`:''}
-    <div class="stamp-wrap">${stampHtml}</div>
-  </div>
-</div>
-
-<div class="mid-grid">
-  <div>
-    ${bankLines.length ? `
-    <div class="bank-note">※恐れ入りますが振込手数料はご負担下さいます様お願い申し上げます。</div>
-    <div class="bank-box">${bankLines.map(l=>`<div>■ ${esc(l)}</div>`).join('')}</div>` : ''}
-  </div>
-  <div>
-    <div class="amount-area">
-      <div class="amount-row">
-        <div class="amount-label">ご請求額　金</div>
-        <div class="amount-value">${fmtN(sumIncl)}</div>
-        <div class="amount-yen">円</div>
-      </div>
-      <div class="limit-row">
-        <div class="limit-label">お支払期限</div>
-        <div>${inv.limit?fmtLim(inv.limit):'　　月　　日'}</div>
-      </div>
+    <div class="stamp-wrap">
+      ${s.stampImage
+        ? `<img src="${s.stampImage}" style="width:56px;height:56px;object-fit:contain;opacity:0.9">`
+        : `<div style="width:54px;height:54px;border:2px solid #c00;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#c00;font-size:8px;font-weight:700;text-align:center;line-height:1.3">${esc(s.company||'社印')}</div>`
+      }
     </div>
   </div>
 </div>
 
+<!-- ご請求金額（税込） -->
+<div class="amount-box">
+  <div class="amount-label-bar">ご請求金額（税込）</div>
+  <div class="amount-value-row">¥${fmtN(sumIncl)}</div>
+</div>
+
+<!-- 振込先 -->
+${bankLines.length ? `
+<div class="bank-note-text">※振込手数料はご負担下さいます様お願い申し上げます。</div>
+<table class="bank-table">
+  <tr><td class="bank-label">振込先</td><td>${bankLines.map(l=>esc(l)).join('<br>')}</td></tr>
+  ${inv.limit ? `<tr><td class="bank-label">振込期日</td><td>${esc(fmtYMD(inv.limit))}</td></tr>` : ''}
+</table>` : ''}
+
+<!-- 明細テーブル -->
 <div class="table-wrap">
 <table>
   <thead><tr>
-    <th style="width:43%">内　容</th>
-    <th style="width:7%">数量</th>
-    <th style="width:7%">単位</th>
-    <th style="width:14%">単　価</th>
-    <th style="width:14%">金　額</th>
-    <th style="width:15%">備　考</th>
+    <th style="width:11%">日付</th>
+    <th style="width:31%">内容</th>
+    <th style="width:5%">軽減税率</th>
+    <th style="width:6%">数量</th>
+    <th style="width:6%">単位</th>
+    <th style="width:14%">単価（税抜）</th>
+    <th style="width:6%">税率</th>
+    <th style="width:14%">金額（税抜）</th>
   </tr></thead>
   <tbody>${itemRows}${emptyRows}</tbody>
-  <tfoot>
-    <tr class="subtotal"><td colspan="4" class="sum-label">合計金額</td><td class="sum-val">${fmtN(sumExcl)}</td><td></td></tr>
-    <tr class="tax"><td colspan="4" class="sum-label">消費税額(${Math.round(TAX_RATE*100)}%)</td><td class="sum-val">${fmtN(sumTax)}</td><td></td></tr>
-    <tr class="total"><td colspan="4" class="sum-label">税込請求総額</td><td class="sum-val">${fmtN(sumIncl)}</td><td></td></tr>
-  </tfoot>
 </table>
 </div>
 
-${inv.memo||s.note ? `<div class="note-box">${[inv.memo,s.note].filter(Boolean).map(t=>esc(t)).join('<br>')}</div>` : ''}
+<!-- フッター：税率区分 + 小計・消費税・合計 -->
+<div class="footer-area">
+  <div class="tax-breakdown">
+    <div style="font-size:9px;margin-bottom:2px">※は軽減税率対象です。</div>
+    <table>
+      <tr>
+        <th>税率区分</th><th>消費税</th><th>金額（税抜）</th>
+      </tr>
+      <tr>
+        <td style="text-align:center">10%対象</td>
+        <td>¥${fmtN(sumTax)}</td>
+        <td>¥${fmtN(sumExcl)}</td>
+      </tr>
+    </table>
+  </div>
+  <div class="subtotal-area">
+    <div class="subtotal-row">
+      <span class="subtotal-label">小計</span>
+      <span class="subtotal-val">¥${fmtN(sumExcl)}</span>
+    </div>
+    <div class="subtotal-row">
+      <span class="subtotal-label">消費税</span>
+      <span class="subtotal-val">¥${fmtN(sumTax)}</span>
+    </div>
+    <div class="subtotal-row total-row">
+      <span class="subtotal-label">合計</span>
+      <span class="subtotal-val">¥${fmtN(sumIncl)}</span>
+    </div>
+  </div>
+</div>
+
+<!-- 備考 -->
+<div class="biko-bar">備　考</div>
+<div class="biko-box">${inv.memo ? esc(inv.memo).replace(/\n/g,'<br>') : '&nbsp;'}</div>
+
 </body></html>`;
 }
 
